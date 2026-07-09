@@ -2,27 +2,21 @@ import React, { useState, useEffect } from 'react';
 
 const API_BASE = 'http://localhost:8091/api/v1';
 
-// SVG Icons
+// SVGs
 const SearchIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-);
-const GridIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
 );
 const UploadIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-);
-const ChatIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-);
-const ChartIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
 );
 const SunIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
 );
 const MoonIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+);
+const LogoutIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
 );
 
 function App() {
@@ -94,8 +88,7 @@ function App() {
     try {
       const res = await fetch(`${API_BASE}/agents`);
       if (res.ok) {
-        const data = await res.json();
-        setAgents(data);
+        setAgents(await res.json());
       }
     } catch (err) {
       console.error("Failed loading agents", err);
@@ -267,89 +260,94 @@ function App() {
   });
 
   return (
-    <div className="app-container">
-      {/* Sidebar navigation panel */}
-      <aside className="sidebar">
-        <div className="brand">
-          <span style={{ fontSize: '1.6rem' }}>💎</span>
-          <span>SymphonyAI</span>
+    <div>
+      {/* Premium Top Navigation Header */}
+      <header className="top-header">
+        <div className="brand-section">
+          <div className="logo-badge">S</div>
+          <div className="brand-titles">
+            <span className="brand-name">Symphony AI</span>
+            <span className="brand-subtext">Enterprise agent directory · supervisor orchestrator</span>
+          </div>
         </div>
-        
-        <nav style={{ marginTop: '1rem' }}>
-          <ul className="nav-links">
-            <li className={`nav-item ${view === 'marketplace' ? 'active' : ''}`} onClick={() => setView('marketplace')}>
-              <GridIcon />
+
+        {/* Navigation Tabs */}
+        <nav>
+          <ul className="nav-tabs">
+            <li className={`nav-tab ${view === 'marketplace' ? 'active' : ''}`} onClick={() => setView('marketplace')}>
               <span>Registry Hub</span>
             </li>
-            <li className={`nav-item ${view === 'onboard' ? 'active' : ''}`} onClick={() => setView('onboard')}>
-              <UploadIcon />
+            <li className={`nav-tab ${view === 'onboard' ? 'active' : ''}`} onClick={() => setView('onboard')}>
               <span>Onboard Agent</span>
             </li>
-            <li className={`nav-item ${view === 'chat' ? 'active' : ''}`} onClick={() => setView('chat')}>
-              <ChatIcon />
+            <li className={`nav-tab ${view === 'chat' ? 'active' : ''}`} onClick={() => setView('chat')}>
               <span>Supervisor Chat</span>
             </li>
-            <li className={`nav-item ${view === 'analytics' ? 'active' : ''}`} onClick={() => setView('analytics')}>
-              <ChartIcon />
+            <li className={`nav-tab ${view === 'analytics' ? 'active' : ''}`} onClick={() => setView('analytics')}>
               <span>Demand & Gaps</span>
             </li>
           </ul>
         </nav>
 
-        {/* SSO Role Switcher Panel */}
-        <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem' }}>
-          <div className="form-group" style={{ marginBottom: '1rem' }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: '600' }}>Active SSO User Role</label>
-            <select 
-              className="form-control"
-              style={{ padding: '0.5rem', width: '100%', cursor: 'pointer' }}
-              value={userRole}
-              onChange={e => setUserRole(e.target.value)}
-            >
+        {/* Action Controls */}
+        <div className="header-actions">
+          {/* Workspace badge */}
+          <div className="workspace-pill">
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }}></span>
+            <span>default_ws</span>
+          </div>
+
+          {/* User Role Selector */}
+          <div className="role-selector-wrapper">
+            <select value={userRole} onChange={e => setUserRole(e.target.value)}>
               <option value="Employee">Employee (Standard)</option>
-              <option value="HR">HR Payroll Specialist</option>
-              <option value="Admin">System Administrator</option>
+              <option value="HR">HR Specialist</option>
+              <option value="Admin">Administrator</option>
             </select>
           </div>
-          
-          <button className="theme-toggle-btn" onClick={toggleTheme}>
-            {theme === 'dark' ? (
-              <><SunIcon /><span>Light Theme</span></>
-            ) : (
-              <><MoonIcon /><span>Dark Theme</span></>
-            )}
+
+          {/* Theme switcher toggle */}
+          <button className="icon-btn" onClick={toggleTheme} title="Toggle theme">
+            {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+          </button>
+
+          <span style={{ fontSize: '0.85rem', fontWeight: '500', color: 'var(--text-secondary)' }}>shubham</span>
+          <button className="icon-btn" title="Sign out">
+            <LogoutIcon />
           </button>
         </div>
-      </aside>
+      </header>
 
-      {/* Main Panel Content */}
-      <main className="main-content">
+      {/* Main Panel Content Wrapper */}
+      <main className="main-wrapper">
         
-        {/* VIEW 1: MARKETPLACE */}
+        {/* VIEW 1: REGISTRY HUB */}
         {view === 'marketplace' && (
           <>
-            <div>
-              <h1 style={{ fontSize: '2.5rem', fontWeight: '700', marginBottom: '0.5rem' }}>Registry Directory</h1>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>Central catalog of all registered internal enterprise AI agents.</p>
+            <div className="section-header">
+              <h1 className="section-title">Internal Registry</h1>
+              <p className="section-desc">Search, filter, and discover all employee-built AI workflows registered inside your enterprise workspace.</p>
             </div>
 
-            <form onSubmit={handleSearch} className="search-container">
-              <input 
-                type="text" 
-                className="search-input"
-                placeholder="Search agents semantically (e.g. 'I need to check employee payroll')"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
-              <button type="submit" className="btn btn-primary"><SearchIcon /><span>Search</span></button>
-            </form>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <form onSubmit={handleSearch} className="search-container" style={{ maxWidth: '500px', flexGrow: 1 }}>
+                <input 
+                  type="text" 
+                  className="search-input"
+                  placeholder="Search agents semantically (e.g. 'translate legal contracts')"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                />
+                <button type="submit" className="btn btn-primary" style={{ height: '100%' }}><SearchIcon /></button>
+              </form>
 
-            <div className="category-pills">
-              {['All', 'Legal', 'HR', 'Finance', 'DevTools'].map(cat => (
-                <span key={cat} className={`pill ${selectedCategory === cat ? 'active' : ''}`} onClick={() => setSelectedCategory(cat)}>
-                  {cat}
-                </span>
-              ))}
+              <div className="category-pills">
+                {['All', 'Legal', 'HR', 'Finance', 'DevTools'].map(cat => (
+                  <span key={cat} className={`pill ${selectedCategory === cat ? 'active' : ''}`} onClick={() => setSelectedCategory(cat)}>
+                    {cat}
+                  </span>
+                ))}
+              </div>
             </div>
 
             {loading ? (
@@ -357,32 +355,33 @@ function App() {
             ) : (
               <div className="agent-grid">
                 {filteredAgents.length === 0 ? (
-                  <div style={{ gridColumn: '1/-1', padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)' }}>
+                  <div style={{ gridColumn: '1/-1', padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-lg)' }}>
                     No matching agents found. Try registering a new manifest!
                   </div>
                 ) : (
                   filteredAgents.map(agent => (
-                    <div key={agent.id} className="agent-card" onClick={() => setSelectedAgent(agent)}>
+                    <div key={agent.id} className="premium-card" onClick={() => setSelectedAgent(agent)}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
-                          <h3 style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '0.2rem' }}>{agent.name}</h3>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>v{agent.version}</span>
+                          <h3 style={{ fontSize: '1.05rem', fontWeight: '600', color: 'var(--text-primary)' }}>{agent.name}</h3>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>v{agent.version}</span>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.3rem' }}>
-                          <span className={`badge ${agent.status === 'ACTIVE' ? 'badge-active' : 'badge-unhealthy'}`}>
+                          <span className={`status-pill ${agent.status === 'ACTIVE' ? 'status-active' : 'status-unhealthy'}`}>
+                            <span className="status-dot"></span>
                             {agent.status}
                           </span>
                           {agent.requiresRbac && (
-                            <span className="badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.15)' }}>
-                              RBAC Lock
+                            <span className="badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.15)', fontSize: '0.65rem' }}>
+                              RBAC
                             </span>
                           )}
                         </div>
                       </div>
-                      <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', flexGrow: 1, lineBreak: 'anywhere' }}>{agent.description}</p>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', flexGrow: 1, lineBreak: 'anywhere', lineHeight: '1.4' }}>{agent.description}</p>
                       {agent.similarity < 1.0 && agent.similarity > 0 && (
-                        <div style={{ fontSize: '0.8rem', color: 'var(--accent-primary)', fontWeight: '500' }}>
-                          Match Score: {Math.round(agent.similarity * 100)}%
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
+                          Match Score: <span style={{ color: 'var(--text-primary)' }}>{Math.round(agent.similarity * 100)}%</span>
                         </div>
                       )}
                     </div>
@@ -394,61 +393,58 @@ function App() {
             {/* Agent Detail Modal */}
             {selectedAgent && (
               <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={() => setSelectedAgent(null)}>
-                <div className="glass-card" style={{ width: '100%', maxWidth: '550px', padding: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', margin: '1rem', background: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }} onClick={e => e.stopPropagation()}>
+                <div className="premium-card" style={{ width: '100%', maxWidth: '520px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', margin: '1rem', background: 'var(--bg-secondary)', borderColor: 'var(--border-color)', cursor: 'default' }} onClick={e => e.stopPropagation()}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h2 style={{ fontSize: '1.6rem' }}>{selectedAgent.name}</h2>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      {selectedAgent.requiresRbac && <span className="badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>RBAC</span>}
-                      <span className="badge badge-active">{selectedAgent.status}</span>
-                    </div>
+                    <h2 style={{ fontSize: '1.4rem', fontWeight: '600' }}>{selectedAgent.name}</h2>
+                    <span className="status-pill status-active"><span className="status-dot"></span>{selectedAgent.status}</span>
                   </div>
                   <div>
-                    <h4 style={{ color: 'var(--text-secondary)', marginBottom: '0.4rem', fontSize: '0.85rem', textTransform: 'uppercase' }}>Description</h4>
-                    <p style={{ fontSize: '0.95rem', lineHeight: '1.4' }}>{selectedAgent.description}</p>
+                    <h4 style={{ color: 'var(--text-secondary)', marginBottom: '0.3rem', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: '600' }}>Description</h4>
+                    <p style={{ fontSize: '0.9rem', lineHeight: '1.4' }}>{selectedAgent.description}</p>
                   </div>
                   {selectedAgent.requiresRbac && (
                     <div>
-                      <h4 style={{ color: '#ef4444', marginBottom: '0.4rem', fontSize: '0.85rem', textTransform: 'uppercase' }}>Governance Rules</h4>
-                      <p style={{ fontSize: '0.9rem' }}>
-                        Execution is locked to user identities with active roles: 
+                      <h4 style={{ color: '#ef4444', marginBottom: '0.3rem', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: '600' }}>Governance Rules</h4>
+                      <p style={{ fontSize: '0.85rem' }}>
+                        Execution restricted to roles: 
                         <strong style={{ marginLeft: '0.4rem' }}>{selectedAgent.authorizedRoles?.join(', ') || 'None'}</strong>
                       </p>
                     </div>
                   )}
                   <div>
-                    <h4 style={{ color: 'var(--text-secondary)', marginBottom: '0.4rem', fontSize: '0.85rem', textTransform: 'uppercase' }}>Endpoints</h4>
-                    <div style={{ fontFamily: 'monospace', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', backgroundColor: 'var(--bg-primary)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                      <div>Execution: <span style={{ color: 'var(--accent-primary)' }}>{selectedAgent.endpointUrl}</span></div>
-                      <div>Health: <span style={{ color: 'var(--accent-primary)' }}>{selectedAgent.healthCheckUrl}</span></div>
+                    <h4 style={{ color: 'var(--text-secondary)', marginBottom: '0.3rem', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: '600' }}>Endpoints</h4>
+                    <div style={{ fontFamily: 'monospace', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', backgroundColor: 'var(--bg-primary)', padding: '0.6rem 0.8rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                      <div>Execution: <span style={{ color: 'var(--text-muted)' }}>{selectedAgent.endpointUrl}</span></div>
+                      <div>Health: <span style={{ color: 'var(--text-muted)' }}>{selectedAgent.healthCheckUrl}</span></div>
                     </div>
                   </div>
                   <div>
-                    <h4 style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem', fontSize: '0.85rem', textTransform: 'uppercase' }}>Routing Parameters</h4>
+                    <h4 style={{ color: 'var(--text-secondary)', marginBottom: '0.4rem', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: '600' }}>Parameters Schema</h4>
                     {selectedAgent.parameters && selectedAgent.parameters.length > 0 ? (
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                         <thead>
                           <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left', color: 'var(--text-secondary)' }}>
-                            <th style={{ padding: '0.5rem 0' }}>Name</th>
-                            <th style={{ padding: '0.5rem 0' }}>Type</th>
-                            <th style={{ padding: '0.5rem 0' }}>Required</th>
+                            <th style={{ padding: '0.4rem 0' }}>Name</th>
+                            <th style={{ padding: '0.4rem 0' }}>Type</th>
+                            <th style={{ padding: '0.4rem 0' }}>Required</th>
                           </tr>
                         </thead>
                         <tbody>
                           {selectedAgent.parameters.map(p => (
-                            <tr key={p.name} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                              <td style={{ padding: '0.5rem 0', fontFamily: 'monospace' }}>{p.name}</td>
-                              <td style={{ padding: '0.5rem 0', color: 'var(--accent-primary)' }}>{p.type}</td>
-                              <td style={{ padding: '0.5rem 0' }}>{p.required ? 'Yes' : 'No'}</td>
+                            <tr key={p.name} style={{ borderBottom: '1px solid var(--border-muted)' }}>
+                              <td style={{ padding: '0.4rem 0', fontFamily: 'monospace' }}>{p.name}</td>
+                              <td style={{ padding: '0.4rem 0', color: 'var(--text-muted)' }}>{p.type}</td>
+                              <td style={{ padding: '0.4rem 0' }}>{p.required ? 'Yes' : 'No'}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     ) : (
-                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>No parameter configuration specified.</p>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>No parameter configuration specified.</p>
                     )}
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <button className="btn btn-secondary" onClick={() => setSelectedAgent(null)}>Close</button>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                    <button className="btn" onClick={() => setSelectedAgent(null)}>Close</button>
                   </div>
                 </div>
               </div>
@@ -459,38 +455,38 @@ function App() {
         {/* VIEW 2: ONBOARDING */}
         {view === 'onboard' && (
           <>
-            <div>
-              <h1 style={{ fontSize: '2.5rem', fontWeight: '700', marginBottom: '0.5rem' }}>Agent Registration</h1>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>Upload `agent-manifest.json` configurations to index your tool into the registry.</p>
+            <div className="section-header">
+              <h1 className="section-title">Onboard Agent</h1>
+              <p className="section-desc">Drop manifest schemas in. Registry pings endpoints, validates JSON models, and indexes descriptions semantically.</p>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '2.5rem', alignItems: 'start' }}>
-              <form onSubmit={handleOnboard} className="glass-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', background: 'var(--bg-secondary)' }}>
-                <div className="form-group">
-                  <label>Agent Manifest JSON Spec</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '2rem', alignItems: 'start' }}>
+              <div className="ingest-drop-zone" style={{ width: '100%' }}>
+                <div style={{ width: '100%', textAlign: 'left' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.5rem' }}>agent-manifest.json Spec</label>
                   <textarea 
-                    rows="15" 
+                    rows="14" 
                     className="form-control"
-                    style={{ fontFamily: 'monospace', fontSize: '0.85rem', resize: 'vertical' }}
+                    style={{ fontFamily: 'monospace', fontSize: '0.8rem', resize: 'vertical', width: '100%', backgroundColor: 'var(--bg-secondary)' }}
                     value={manifestText}
                     onChange={e => setManifestText(e.target.value)}
                   />
                 </div>
-                <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center' }}>
+                <button onClick={handleOnboard} className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>
                   <UploadIcon />
-                  <span>Upload & Register</span>
+                  <span>Register Manifest</span>
                 </button>
-              </form>
+              </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: '600' }}>Verification Terminal</h3>
-                <div className="terminal-console">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: '600', color: 'var(--text-secondary)' }}>Verification Logs</h3>
+                <div className="terminal-console" style={{ height: '370px' }}>
                   {onboardLogs.length === 0 ? (
-                    <div style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>Logs will display here...</div>
+                    <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Logs will display here...</div>
                   ) : (
                     onboardLogs.map((log, idx) => (
                       <div key={idx} className={`terminal-line ${log.type}`}>
-                        <span style={{ color: 'var(--text-secondary)', marginRight: '0.5rem' }}>[{log.time}]</span>
+                        <span style={{ color: 'var(--text-muted)', marginRight: '0.5rem' }}>[{log.time}]</span>
                         <span>{log.text}</span>
                       </div>
                     ))
@@ -504,84 +500,72 @@ function App() {
         {/* VIEW 3: SUPERVISOR CHAT */}
         {view === 'chat' && (
           <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <h1 style={{ fontSize: '2.5rem', fontWeight: '700', marginBottom: '0.5rem' }}>Supervisor Orchestrator</h1>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>Explain your requirement. The Supervisor will automatically resolve and route payload to matching agents.</p>
-              </div>
-              <div style={{ padding: '0.5rem 1rem', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}>
-                SSO Header: <strong style={{ color: 'var(--accent-primary)' }}>{userRole}</strong>
-              </div>
+            <div className="section-header">
+              <h1 className="section-title">Supervisor Chat</h1>
+              <p className="section-desc">State compound tasks or single requirements. Supervisor routes pipelines, checks RBAC roles, and fires compliance monitors.</p>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 0.7fr', gap: '2.5rem', height: '520px', alignItems: 'stretch' }}>
-              
-              {/* Chat Thread Panel */}
-              <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg-secondary)', overflow: 'hidden' }}>
-                
-                {/* Message display scroll panel */}
+            <div className="chat-window">
+              <div className="chat-bubble-container">
                 <div style={{ flexGrow: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem', paddingRight: '0.5rem' }}>
                   {chatMessages.map((msg, idx) => (
                     <div 
                       key={idx} 
                       style={{ 
                         alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-                        backgroundColor: msg.sender === 'user' ? 'var(--accent-glow)' : 'var(--bg-primary)',
+                        backgroundColor: msg.sender === 'user' ? 'var(--bg-tertiary)' : 'var(--bg-primary)',
                         border: '1px solid var(--border-color)',
                         borderRadius: 'var(--radius-md)',
-                        padding: '1rem',
+                        padding: '0.85rem 1rem',
                         maxWidth: '85%',
                         cursor: msg.routing ? 'pointer' : 'default'
                       }}
                       onClick={() => msg.routing && setSelectedRoutingMetadata(msg.routing)}
                     >
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-                        {msg.sender === 'user' ? 'You' : 'Supervisor'} • {msg.time}
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>
+                        {msg.sender === 'user' ? 'shubham' : 'Supervisor'} • {msg.time}
                       </div>
                       
-                      <p style={{ fontSize: '0.95rem', lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>{msg.text}</p>
+                      <p style={{ fontSize: '0.9rem', lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>{msg.text}</p>
                       
-                      {/* PII Shield Sanitization Badge */}
                       {msg.piiSanitized && (
                         <div style={{ 
-                          marginTop: '0.6rem', 
-                          display: 'flex', 
+                          marginTop: '0.5rem', 
+                          display: 'inline-flex', 
                           alignItems: 'center', 
-                          gap: '0.4rem', 
-                          fontSize: '0.75rem', 
-                          color: '#b45309', 
-                          backgroundColor: '#fef3c7', 
-                          border: '1px solid #fcd34d',
-                          padding: '0.35rem 0.6rem', 
+                          gap: '0.3rem', 
+                          fontSize: '0.7rem', 
+                          color: 'var(--warning)', 
+                          backgroundColor: 'rgba(245, 158, 11, 0.05)', 
+                          border: '1px solid rgba(245, 158, 11, 0.2)',
+                          padding: '0.25rem 0.5rem', 
                           borderRadius: '4px',
                           fontWeight: '500'
                         }}>
-                          <span>🛡️ PII Firewall active: Sanitized elements ({msg.sanitizedFields?.join(', ')})</span>
+                          <span>🛡️ PII Firewall: Masked ({msg.sanitizedFields?.join(', ')})</span>
                         </div>
                       )}
 
                       {msg.routing && (
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', fontWeight: 'bold' }}>
-                            [Inspect Routing Log]
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.4rem' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'bold' }}>
+                            [Inspect Routing Logs]
                           </span>
                         </div>
                       )}
                     </div>
                   ))}
                   {chatLoading && (
-                    <div style={{ alignSelf: 'flex-start', color: 'var(--text-secondary)', fontSize: '0.9rem', fontStyle: 'italic' }}>
-                      Supervisor is routing payload...
+                    <div style={{ alignSelf: 'flex-start', color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic' }}>
+                      Supervisor routing intent...
                     </div>
                   )}
                 </div>
 
-                {/* Input Text Form */}
-                <form onSubmit={handleChatSend} style={{ display: 'flex', gap: '0.75rem' }}>
+                <form onSubmit={handleChatSend} className="chat-input-row">
                   <input 
                     type="text" 
-                    className="search-input"
-                    placeholder="Describe requirement (e.g. 'extract text from document and translate it')"
+                    placeholder="Describe requirement (e.g. 'extract document text and then translate it')"
                     value={chatInput}
                     onChange={e => setChatInput(e.target.value)}
                   />
@@ -590,14 +574,15 @@ function App() {
               </div>
 
               {/* Execution Inspector Side Panel */}
-              <div className="glass-card" style={{ padding: '1.5rem', background: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
-                <h3 style={{ fontSize: '1.1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>Execution Inspector</h3>
+              <div className="chat-bubble-container" style={{ overflowY: 'auto' }}>
+                <h3 style={{ fontSize: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', fontWeight: '600' }}>Execution Inspector</h3>
                 
                 {selectedRoutingMetadata ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.9rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.85rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span>Status:</span>
-                      <span className={`badge ${selectedRoutingMetadata.status === 'routed' ? 'badge-active' : (selectedRoutingMetadata.status === 'forbidden' ? 'badge-unhealthy' : 'badge-unhealthy')}`}>
+                      <span className={`status-pill ${selectedRoutingMetadata.status === 'routed' ? 'status-active' : 'status-unhealthy'}`}>
+                        <span className="status-dot"></span>
                         {selectedRoutingMetadata.status}
                       </span>
                     </div>
@@ -606,39 +591,40 @@ function App() {
                       <div style={{ fontWeight: '600', marginTop: '0.2rem' }}>{selectedRoutingMetadata.agent || 'None (No Match)'}</div>
                     </div>
                     <div>
-                      <span style={{ color: 'var(--text-secondary)' }}>Execution Step Trace:</span>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.4rem' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>Sequential Orchestration Plan:</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.4rem' }}>
                         {selectedRoutingMetadata.executionSteps && selectedRoutingMetadata.executionSteps.length > 0 ? (
                           selectedRoutingMetadata.executionSteps.map((step, sidx) => (
                             <div key={sidx} style={{ 
-                              fontSize: '0.8rem', 
-                              padding: '0.5rem 0.75rem', 
+                              fontSize: '0.75rem', 
+                              padding: '0.4rem 0.6rem', 
                               backgroundColor: 'var(--bg-primary)', 
                               borderRadius: '4px',
-                              borderLeft: '3px solid var(--accent-primary)',
-                              lineHeight: '1.3'
+                              borderLeft: '2px solid var(--text-muted)',
+                              lineHeight: '1.3',
+                              color: 'var(--text-secondary)'
                             }}>
                               {step}
                             </div>
                           ))
                         ) : (
-                          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>No steps generated.</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>No steps generated.</div>
                         )}
                       </div>
                     </div>
                     <div>
-                      <span style={{ color: 'var(--text-secondary)' }}>Latency:</span>
-                      <div style={{ fontWeight: '500', marginTop: '0.2rem' }}>{selectedRoutingMetadata.latency} ms</div>
+                      <span style={{ color: 'var(--text-secondary)' }}>Execution Latency:</span>
+                      <div style={{ fontWeight: '500', marginTop: '0.1rem' }}>{selectedRoutingMetadata.latency} ms</div>
                     </div>
                     <div>
-                      <span style={{ color: 'var(--text-secondary)' }}>Extracted JSON Parameters:</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>Mapped Arguments Payload:</span>
                       <pre style={{ 
-                        marginTop: '0.5rem', 
+                        marginTop: '0.4rem', 
                         fontFamily: 'monospace', 
-                        fontSize: '0.8rem', 
+                        fontSize: '0.75rem', 
                         backgroundColor: 'var(--bg-primary)', 
-                        padding: '0.75rem', 
-                        borderRadius: 'var(--radius-sm)', 
+                        padding: '0.6rem', 
+                        borderRadius: 'var(--radius-md)', 
                         border: '1px solid var(--border-color)',
                         overflowX: 'auto',
                         whiteSpace: 'pre-wrap'
@@ -648,12 +634,11 @@ function App() {
                     </div>
                   </div>
                 ) : (
-                  <div style={{ color: 'var(--text-secondary)', fontStyle: 'italic', fontSize: '0.9rem', textAlign: 'center', marginTop: '4rem' }}>
-                    Select a routed message response to inspect payload metadata.
+                  <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem', textAlign: 'center', marginTop: '4rem' }}>
+                    Select a routed message response to inspect execution payload.
                   </div>
                 )}
               </div>
-
             </div>
           </>
         )}
@@ -661,70 +646,74 @@ function App() {
         {/* VIEW 4: DEMAND & GAPS */}
         {view === 'analytics' && (
           <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
               <div>
-                <h1 style={{ fontSize: '2.5rem', fontWeight: '700', marginBottom: '0.5rem' }}>Demand & Innovation Gaps</h1>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>Data-driven corporate backlog mapped from unaddressed search queries.</p>
+                <h1 className="section-title">Demand Backlog</h1>
+                <p className="section-desc">Continuous feedback mapping: clustered innovation backlog topics built from unaddressed client registry requests.</p>
               </div>
               <button 
                 className="btn btn-secondary" 
                 onClick={triggerClustering}
                 disabled={clusteringLoading}
               >
-                {clusteringLoading ? 'Clustering...' : 'Trigger Gap Clustering'}
+                {clusteringLoading ? 'Clustering...' : 'Run Gap Clustering'}
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '2.5rem', alignItems: 'start' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 0.75fr', gap: '2rem', alignItems: 'start' }}>
               
-              {/* Leaderboard Gaps Table */}
-              <div className="glass-card" style={{ padding: '2rem', background: 'var(--bg-secondary)' }}>
-                <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>Capability Gaps Leaderboard</h3>
-                {gaps.length === 0 ? (
-                  <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', textAlign: 'center', padding: '2rem' }}>
-                    No unaddressed capability gaps recorded yet.
-                  </p>
-                ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', textAlign: 'left' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>Capability Theme</th>
-                        <th style={{ padding: '0.75rem 0.5rem' }}>Summary Details</th>
-                        <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>Weekly Hits</th>
+              {/* Leaderboard Table (matches CodeLens Ingested structure) */}
+              <div>
+                <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Backlog Gap Leaderboard</h3>
+                <table className="premium-table">
+                  <thead>
+                    <tr>
+                      <th>Capability Theme</th>
+                      <th>Summary Details</th>
+                      <th style={{ textAlign: 'center' }}>Weekly Search Hits</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gaps.length === 0 ? (
+                      <tr>
+                        <td colSpan="3" style={{ textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', padding: '2rem' }}>
+                          No capability gaps logged yet.
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {gaps.map(g => (
-                        <tr key={g.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                          <td style={{ padding: '1rem 0.5rem', fontWeight: '600' }}>{g.title}</td>
-                          <td style={{ padding: '1rem 0.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{g.summary}</td>
-                          <td style={{ padding: '1rem 0.5rem', textAlign: 'center', fontWeight: 'bold', color: 'var(--accent-primary)' }}>{g.countFrequency}</td>
+                    ) : (
+                      gaps.map(g => (
+                        <tr key={g.id}>
+                          <td style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{g.title}</td>
+                          <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{g.summary}</td>
+                          <td style={{ textAlign: 'center', fontWeight: '600', color: 'var(--accent-secondary)' }}>{g.countFrequency}</td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
 
-              {/* Telemetry Metrics List */}
-              <div className="glass-card" style={{ padding: '2rem', background: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <h3 style={{ fontSize: '1.2rem' }}>Registered Agent Telemetry</h3>
+              {/* Telemetry log list panel */}
+              <div className="premium-card" style={{ cursor: 'default' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)' }}>Execution Telemetry</h3>
                 {telemetry.length === 0 ? (
-                  <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', textAlign: 'center' }}>No execution telemetry logs found.</p>
+                  <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No execution logs recorded.</p>
                 ) : (
-                  telemetry.map((t, idx) => (
-                    <div key={idx} style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
-                      <div style={{ fontWeight: '600', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
-                        Agent Key: <span style={{ fontFamily: 'monospace', color: 'var(--accent-primary)' }}>{t.agentid}</span>
+                  <div style={{ display: 'flex', flexString: 'column', flexDirection: 'column', gap: '1rem' }}>
+                    {telemetry.map((t, idx) => (
+                      <div key={idx} style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.85rem' }}>
+                        <div style={{ fontWeight: '600', marginBottom: '0.4rem', fontSize: '0.85rem', fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+                          {t.agentid}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          <div>Runs: <strong>{t.countruns}</strong></div>
+                          <div>Success: <strong>{Math.round(t.successrate)}%</strong></div>
+                          <div>Latency: <strong>{Math.round(t.avglatency)} ms</strong></div>
+                          <div>Costs: <strong>${parseFloat(t.totalcost).toFixed(4)}</strong></div>
+                        </div>
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.85rem' }}>
-                        <div>Runs Count: <strong>{t.countruns}</strong></div>
-                        <div>Success Rate: <strong>{Math.round(t.successrate)}%</strong></div>
-                        <div>Avg Latency: <strong>{Math.round(t.avglatency)} ms</strong></div>
-                        <div>Token Cost: <strong>${parseFloat(t.totalcost).toFixed(4)}</strong></div>
-                      </div>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )}
               </div>
 
