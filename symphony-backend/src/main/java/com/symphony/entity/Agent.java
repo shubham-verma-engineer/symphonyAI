@@ -46,6 +46,12 @@ public class Agent {
     @Column(name = "registered_at", insertable = false, updatable = false)
     private OffsetDateTime registeredAt;
 
+    @Column(name = "requires_rbac")
+    private Boolean requiresRbac;
+
+    @Column(name = "authorized_roles")
+    private String authorizedRoles;
+
     @Version
     @Column(name = "concurrency_version", nullable = false)
     private Integer concurrencyVersion;

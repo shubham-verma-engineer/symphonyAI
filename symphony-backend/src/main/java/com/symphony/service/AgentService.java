@@ -70,6 +70,9 @@ public class AgentService {
                 .healthCheckUrl(manifest.getEndpoints().getHealth())
                 .status("ACTIVE")
                 .createdBy(userId)
+                .requiresRbac(manifest.getSecurity() != null && manifest.getSecurity().getRequiresRBAC())
+                .authorizedRoles(manifest.getSecurity() != null && manifest.getSecurity().getAuthorizedRoles() != null 
+                        ? String.join(",", manifest.getSecurity().getAuthorizedRoles()) : null)
                 .build();
 
         Agent savedAgent = agentRepository.save(agent);
@@ -113,30 +116,11 @@ public class AgentService {
 
         List<AgentSearchMatchDto> matches = new ArrayList<>();
         for (Object[] row : rows) {
-            // Reconstruct agent columns: id, workspace_id, name, version, description, endpoint_url, health_check_url, status
-            // The mapping order from SELECT a.* corresponds to PostgreSQL schema:
-            // 0: id (UUID)
-            // 1: workspace_id (UUID)
-            // 2: name (String)
-            // 3: version (String)
-            // 4: description (String)
-            // 5: description_embedding (skipped/pgvector)
-            // 6: endpoint_url (String)
-            // 7: health_check_url (String)
-            // 8: status (String)
-            // 9: created_by (UUID)
-            // 10: registered_at (OffsetDateTime)
-            // 11: concurrency_version (Integer)
-            // And 12 is similarity (Double)
-            
             UUID id = (UUID) row[0];
-            String name = (String) row[2];
-            String version = (String) row[3];
-            String description = (String) row[4];
-            String endpointUrl = (String) row[6];
-            String healthCheckUrl = (String) row[7];
-            String status = (String) row[8];
-            Double similarity = (Double) row[12];
+            Double similarity = (Double) row[row.length - 1];
+
+            Agent agent = agentRepository.findById(id).orElse(null);
+            if (agent == null) continue;
 
             List<AgentParameterDto> params = parameterRepository.findAllByAgentId(id).stream()
                     .map(p -> AgentParameterDto.builder()
@@ -148,15 +132,18 @@ public class AgentService {
                     .collect(Collectors.toList());
 
             matches.add(AgentSearchMatchDto.builder()
-                    .id(id)
-                    .name(name)
-                    .version(version)
-                    .description(description)
-                    .endpointUrl(endpointUrl)
-                    .healthCheckUrl(healthCheckUrl)
-                    .status(status)
+                    .id(agent.getId())
+                    .name(agent.getName())
+                    .version(agent.getVersion())
+                    .description(agent.getDescription())
+                    .endpointUrl(agent.getEndpointUrl())
+                    .healthCheckUrl(agent.getHealthCheckUrl())
+                    .status(agent.getStatus())
                     .similarity(similarity != null ? similarity : 0.0)
                     .parameters(params)
+                    .requiresRbac(agent.getRequiresRbac())
+                    .authorizedRoles(agent.getAuthorizedRoles() != null 
+                            ? java.util.Arrays.asList(agent.getAuthorizedRoles().split(",")) : java.util.Collections.emptyList())
                     .build());
         }
 
@@ -185,6 +172,9 @@ public class AgentService {
                             .status(a.getStatus())
                             .similarity(1.0)
                             .parameters(params)
+                            .requiresRbac(a.getRequiresRbac())
+                            .authorizedRoles(a.getAuthorizedRoles() != null 
+                                    ? java.util.Arrays.asList(a.getAuthorizedRoles().split(",")) : java.util.Collections.emptyList())
                             .build();
                 })
                 .collect(Collectors.toList());

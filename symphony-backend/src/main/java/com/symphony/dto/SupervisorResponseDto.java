@@ -12,5 +12,8 @@ public class SupervisorResponseDto {
     private String matchedAgent;
     private Map<String, Object> extractedParameters;
     private int latencyMs;
-    private String status; // 'routed', 'no_match', 'failed'
+    private String status; // 'routed', 'no_match', 'failed', 'forbidden'
+    private boolean piiSanitized;
+    private java.util.List<String> sanitizedFields;
+    private java.util.List<String> executionSteps;
 }

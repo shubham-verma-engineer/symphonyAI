@@ -18,4 +18,6 @@ public class AgentSearchMatchDto {
     private String status;
     private double similarity;
     private List<AgentParameterDto> parameters;
+    private Boolean requiresRbac;
+    private List<String> authorizedRoles;
 }

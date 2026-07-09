@@ -28,29 +28,32 @@ const MoonIcon = () => (
 function App() {
   const [view, setView] = useState('marketplace'); // 'marketplace' | 'onboard' | 'chat' | 'analytics'
   const [theme, setTheme] = useState(() => localStorage.getItem('symphony-theme') || 'dark');
+  const [userRole, setUserRole] = useState(() => localStorage.getItem('symphony-role') || 'Employee');
+  
   const [agents, setAgents] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [loading, setLoading] = useState(false);
   const [manifestText, setManifestText] = useState(JSON.stringify({
     "manifestVersion": "1.0",
-    "name": "document-summarizer",
+    "name": "payroll-manager",
     "version": "1.0.0",
-    "description": "Extracts summaries and action items from PDFs and DOCX files.",
+    "description": "Reviews corporate staff payroll files and executes salary disbursement.",
     "endpoints": {
-      "execution": "https://summarizer.internal.net/api/v1/summarize",
-      "health": "https://summarizer.internal.net/health"
+      "execution": "https://payroll.internal.net/api/v1/disburse",
+      "health": "https://payroll.internal.net/health"
     },
     "parameters": [
       {
-        "name": "documentUrl",
+        "name": "departmentCode",
         "type": "string",
-        "description": "Secure file path of the document",
+        "description": "Department code (e.g. ENG, HR)",
         "required": true
       }
     ],
     "security": {
-      "requiresRBAC": false
+      "requiresRBAC": true,
+      "authorizedRoles": ["Admin", "HR"]
     }
   }, null, 2));
 
@@ -76,11 +79,16 @@ function App() {
     localStorage.setItem('symphony-theme', theme);
   }, [theme]);
 
+  // Sync userRole
+  useEffect(() => {
+    localStorage.setItem('symphony-role', userRole);
+  }, [userRole]);
+
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
-  // Fetch agents catalog
+  // Fetch agents
   const fetchAgents = async () => {
     setLoading(true);
     try {
@@ -160,6 +168,10 @@ function App() {
       }
       addLog("Validation PASS: Schema matches specifications.", "success");
 
+      if (parsed.security && parsed.security.requiresRBAC) {
+        addLog(`Security config: RBAC active, limited to: ${JSON.stringify(parsed.security.authorizedRoles)}`, "info");
+      }
+
       addLog(`Loopback Check: Querying health at ${parsed.endpoints.health}...`, "info");
       const res = await fetch(`${API_BASE}/agents/onboard`, {
         method: 'POST',
@@ -194,7 +206,10 @@ function App() {
     try {
       const res = await fetch(`${API_BASE}/supervisor/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-User-Role': userRole
+        },
         body: JSON.stringify({ query: userQuery })
       });
 
@@ -204,11 +219,14 @@ function App() {
           sender: 'supervisor',
           text: data.textResponse,
           time: new Date().toLocaleTimeString(),
+          piiSanitized: data.piiSanitized,
+          sanitizedFields: data.sanitizedFields,
           routing: {
             agent: data.matchedAgent,
             params: data.extractedParameters,
             latency: data.latencyMs,
-            status: data.status
+            status: data.status,
+            executionSteps: data.executionSteps
           }
         };
         setChatMessages(prev => [...prev, msg]);
@@ -257,7 +275,7 @@ function App() {
           <span>SymphonyAI</span>
         </div>
         
-        <nav style={{ marginTop: '1rem', flexGrow: 1 }}>
+        <nav style={{ marginTop: '1rem' }}>
           <ul className="nav-links">
             <li className={`nav-item ${view === 'marketplace' ? 'active' : ''}`} onClick={() => setView('marketplace')}>
               <GridIcon />
@@ -278,14 +296,30 @@ function App() {
           </ul>
         </nav>
 
-        {/* Theme mode toggle */}
-        <button className="theme-toggle-btn" onClick={toggleTheme}>
-          {theme === 'dark' ? (
-            <><SunIcon /><span>Light Theme</span></>
-          ) : (
-            <><MoonIcon /><span>Dark Theme</span></>
-          )}
-        </button>
+        {/* SSO Role Switcher Panel */}
+        <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem' }}>
+          <div className="form-group" style={{ marginBottom: '1rem' }}>
+            <label style={{ fontSize: '0.8rem', fontWeight: '600' }}>Active SSO User Role</label>
+            <select 
+              className="form-control"
+              style={{ padding: '0.5rem', width: '100%', cursor: 'pointer' }}
+              value={userRole}
+              onChange={e => setUserRole(e.target.value)}
+            >
+              <option value="Employee">Employee (Standard)</option>
+              <option value="HR">HR Payroll Specialist</option>
+              <option value="Admin">System Administrator</option>
+            </select>
+          </div>
+          
+          <button className="theme-toggle-btn" onClick={toggleTheme}>
+            {theme === 'dark' ? (
+              <><SunIcon /><span>Light Theme</span></>
+            ) : (
+              <><MoonIcon /><span>Dark Theme</span></>
+            )}
+          </button>
+        </div>
       </aside>
 
       {/* Main Panel Content */}
@@ -334,9 +368,16 @@ function App() {
                           <h3 style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '0.2rem' }}>{agent.name}</h3>
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>v{agent.version}</span>
                         </div>
-                        <span className={`badge ${agent.status === 'ACTIVE' ? 'badge-active' : 'badge-unhealthy'}`}>
-                          {agent.status}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.3rem' }}>
+                          <span className={`badge ${agent.status === 'ACTIVE' ? 'badge-active' : 'badge-unhealthy'}`}>
+                            {agent.status}
+                          </span>
+                          {agent.requiresRbac && (
+                            <span className="badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.15)' }}>
+                              RBAC Lock
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', flexGrow: 1, lineBreak: 'anywhere' }}>{agent.description}</p>
                       {agent.similarity < 1.0 && agent.similarity > 0 && (
@@ -356,12 +397,24 @@ function App() {
                 <div className="glass-card" style={{ width: '100%', maxWidth: '550px', padding: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', margin: '1rem', background: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }} onClick={e => e.stopPropagation()}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h2 style={{ fontSize: '1.6rem' }}>{selectedAgent.name}</h2>
-                    <span className="badge badge-active">{selectedAgent.status}</span>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      {selectedAgent.requiresRbac && <span className="badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>RBAC</span>}
+                      <span className="badge badge-active">{selectedAgent.status}</span>
+                    </div>
                   </div>
                   <div>
                     <h4 style={{ color: 'var(--text-secondary)', marginBottom: '0.4rem', fontSize: '0.85rem', textTransform: 'uppercase' }}>Description</h4>
                     <p style={{ fontSize: '0.95rem', lineHeight: '1.4' }}>{selectedAgent.description}</p>
                   </div>
+                  {selectedAgent.requiresRbac && (
+                    <div>
+                      <h4 style={{ color: '#ef4444', marginBottom: '0.4rem', fontSize: '0.85rem', textTransform: 'uppercase' }}>Governance Rules</h4>
+                      <p style={{ fontSize: '0.9rem' }}>
+                        Execution is locked to user identities with active roles: 
+                        <strong style={{ marginLeft: '0.4rem' }}>{selectedAgent.authorizedRoles?.join(', ') || 'None'}</strong>
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <h4 style={{ color: 'var(--text-secondary)', marginBottom: '0.4rem', fontSize: '0.85rem', textTransform: 'uppercase' }}>Endpoints</h4>
                     <div style={{ fontFamily: 'monospace', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', backgroundColor: 'var(--bg-primary)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
@@ -451,12 +504,17 @@ function App() {
         {/* VIEW 3: SUPERVISOR CHAT */}
         {view === 'chat' && (
           <>
-            <div>
-              <h1 style={{ fontSize: '2.5rem', fontWeight: '700', marginBottom: '0.5rem' }}>Supervisor Orchestrator</h1>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>Explain your requirement. The Supervisor will automatically resolve and route payload to matching agents.</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <h1 style={{ fontSize: '2.5rem', fontWeight: '700', marginBottom: '0.5rem' }}>Supervisor Orchestrator</h1>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>Explain your requirement. The Supervisor will automatically resolve and route payload to matching agents.</p>
+              </div>
+              <div style={{ padding: '0.5rem 1rem', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}>
+                SSO Header: <strong style={{ color: 'var(--accent-primary)' }}>{userRole}</strong>
+              </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 0.7fr', gap: '2.5rem', height: '500px', alignItems: 'stretch' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 0.7fr', gap: '2.5rem', height: '520px', alignItems: 'stretch' }}>
               
               {/* Chat Thread Panel */}
               <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg-secondary)', overflow: 'hidden' }}>
@@ -480,8 +538,28 @@ function App() {
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
                         {msg.sender === 'user' ? 'You' : 'Supervisor'} • {msg.time}
                       </div>
+                      
                       <p style={{ fontSize: '0.95rem', lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>{msg.text}</p>
                       
+                      {/* PII Shield Sanitization Badge */}
+                      {msg.piiSanitized && (
+                        <div style={{ 
+                          marginTop: '0.6rem', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '0.4rem', 
+                          fontSize: '0.75rem', 
+                          color: '#b45309', 
+                          backgroundColor: '#fef3c7', 
+                          border: '1px solid #fcd34d',
+                          padding: '0.35rem 0.6rem', 
+                          borderRadius: '4px',
+                          fontWeight: '500'
+                        }}>
+                          <span>🛡️ PII Firewall active: Sanitized elements ({msg.sanitizedFields?.join(', ')})</span>
+                        </div>
+                      )}
+
                       {msg.routing && (
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
                           <span style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', fontWeight: 'bold' }}>
@@ -503,7 +581,7 @@ function App() {
                   <input 
                     type="text" 
                     className="search-input"
-                    placeholder="Describe requirement (e.g. 'summarize PDF at url https://files/doc.pdf')"
+                    placeholder="Describe requirement (e.g. 'extract text from document and translate it')"
                     value={chatInput}
                     onChange={e => setChatInput(e.target.value)}
                   />
@@ -512,20 +590,41 @@ function App() {
               </div>
 
               {/* Execution Inspector Side Panel */}
-              <div className="glass-card" style={{ padding: '1.5rem', background: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="glass-card" style={{ padding: '1.5rem', background: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto' }}>
                 <h3 style={{ fontSize: '1.1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>Execution Inspector</h3>
                 
                 {selectedRoutingMetadata ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.9rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span>Status:</span>
-                      <span className={`badge ${selectedRoutingMetadata.status === 'routed' ? 'badge-active' : 'badge-unhealthy'}`}>
+                      <span className={`badge ${selectedRoutingMetadata.status === 'routed' ? 'badge-active' : (selectedRoutingMetadata.status === 'forbidden' ? 'badge-unhealthy' : 'badge-unhealthy')}`}>
                         {selectedRoutingMetadata.status}
                       </span>
                     </div>
                     <div>
                       <span style={{ color: 'var(--text-secondary)' }}>Routed Agent:</span>
                       <div style={{ fontWeight: '600', marginTop: '0.2rem' }}>{selectedRoutingMetadata.agent || 'None (No Match)'}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-secondary)' }}>Execution Step Trace:</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.4rem' }}>
+                        {selectedRoutingMetadata.executionSteps && selectedRoutingMetadata.executionSteps.length > 0 ? (
+                          selectedRoutingMetadata.executionSteps.map((step, sidx) => (
+                            <div key={sidx} style={{ 
+                              fontSize: '0.8rem', 
+                              padding: '0.5rem 0.75rem', 
+                              backgroundColor: 'var(--bg-primary)', 
+                              borderRadius: '4px',
+                              borderLeft: '3px solid var(--accent-primary)',
+                              lineHeight: '1.3'
+                            }}>
+                              {step}
+                            </div>
+                          ))
+                        ) : (
+                          <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>No steps generated.</div>
+                        )}
+                      </div>
                     </div>
                     <div>
                       <span style={{ color: 'var(--text-secondary)' }}>Latency:</span>
