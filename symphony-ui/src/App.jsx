@@ -279,7 +279,7 @@ function App() {
       <aside className="sidebar">
         <div className="brand-wrapper" style={{ marginBottom: '2rem' }}>
           <div className="logo-icon">S</div>
-          <span className="brand-title">SymphonyAI</span>
+          <span className="brand-title premium-gradient-text">SymphonyAI</span>
         </div>
 
         <span className="nav-group-title">Enterprise Tools</span>
@@ -343,11 +343,11 @@ function App() {
         {/* Dynamic Canvas Container */}
         <div className="canvas-wrapper">
           
-          {/* VIEW 1: MARKETPLACE */}
+          {/* VIEW 1: REGISTRY HUB */}
           {view === 'marketplace' && (
             <>
               <div className="section-header">
-                <h1 className="page-title">Internal Registry</h1>
+                <h1 className="page-title premium-gradient-text">Internal Registry</h1>
                 <p className="page-desc">Search and discover all employee-built AI tools registered inside your enterprise workspace.</p>
               </div>
 
@@ -485,7 +485,7 @@ function App() {
           {view === 'onboard' && (
             <>
               <div className="section-header">
-                <h1 className="page-title">Onboard Agent</h1>
+                <h1 className="page-title premium-gradient-text">Onboard Agent</h1>
                 <p className="page-desc">Validate, trace, and index developer-hosted agent manifests inside the workspace catalog.</p>
               </div>
 
@@ -530,7 +530,7 @@ function App() {
           {view === 'chat' && (
             <>
               <div className="section-header">
-                <h1 className="page-title">Supervisor Chat</h1>
+                <h1 className="page-title premium-gradient-text">Supervisor Chat</h1>
                 <p className="page-desc">Decompose prompts, resolve schemas, and chain multi-agent executions through compliance firewalls.</p>
               </div>
 
@@ -607,7 +607,7 @@ function App() {
               </div>
 
               {/* Sliding Overlay Inspector Drawer */}
-              <div className={`inspector-drawer ${inspectorOpen ? 'open' : ''}`}>
+              <div className={`glass-drawer ${inspectorOpen ? 'open' : ''}`}>
                 <div className="drawer-header">
                   <h3 style={{ fontSize: '0.95rem', fontWeight: '600' }}>Execution Inspector</h3>
                   <button className="close-btn" onClick={() => setInspectorOpen(false)}>×</button>
@@ -683,7 +683,7 @@ function App() {
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                 <div>
-                  <h1 className="page-title">Demand Backlog</h1>
+                  <h1 className="page-title premium-gradient-text">Demand Backlog</h1>
                   <p className="page-desc">Data-driven priority queue grouping unaddressed client registry requests into developer feature gaps.</p>
                 </div>
                 <button 
