@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.symphony.AgentManifestValidationTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-07-09T13:13:18.762Z" hostname="Shubham-MacBook-Pro.local" time="0.055">
+  <properties/>
+  <testcase name="testValidManifest()" classname="com.symphony.AgentManifestValidationTest" time="0.053"/>
+  <testcase name="testInvalidManifestName()" classname="com.symphony.AgentManifestValidationTest" time="0.002"/>
+  <system-out><![CDATA[18:43:18.712 [Test worker] INFO org.hibernate.validator.internal.util.Version -- HV000001: Hibernate Validator 8.0.2.Final
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
