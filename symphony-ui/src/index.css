@@ -135,24 +135,24 @@ body {
   width: var(--sidebar-width);
   background-color: var(--bg-secondary);
   border-right: 1px solid var(--border-color);
-  padding: 2rem 1.5rem;
+  padding: 2rem 1.25rem;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  position: fixed;
+  position: sticky;
   top: 0;
-  bottom: 0;
-  left: 0;
+  height: 100vh;
   z-index: 40;
 }
 
 .main-content-layout {
   flex-grow: 1;
-  margin-left: var(--sidebar-width);
+  min-width: 0;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
 }
+
 
 /* Glassmorphic Top Header */
 .top-header {
@@ -461,6 +461,25 @@ body {
   gap: 0.75rem;
   background-color: var(--bg-secondary);
 }
+
+.chat-input-bar input {
+  flex-grow: 1;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  padding: 0.75rem 1.25rem;
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  outline: none;
+  width: 100%;
+}
+
+.chat-input-bar input:focus {
+  border-color: var(--text-secondary);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
 
 /* Collapsible Inspector Drawer */
 .glass-drawer {
