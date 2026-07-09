@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 @Component
@@ -40,15 +41,36 @@ public class OpenAiEmbeddingClient {
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final Random random = new Random(42); // Seeded for deterministic mock outputs
-
     public float[] embed(String text) throws IOException {
         if ("mock-key".equalsIgnoreCase(apiKey)) {
             log.info("Generating mock embedding for text (mock-key active)");
             float[] mockVec = new float[DIMENSIONS];
-            double sumSq = 0;
-            // Generate unit vector
+            // 1. Fill with base noise
+            Random seededRandom = new Random(text.toLowerCase().hashCode());
             for (int i = 0; i < DIMENSIONS; i++) {
-                mockVec[i] = random.nextFloat() - 0.5f;
+                mockVec[i] = (seededRandom.nextFloat() - 0.5f) * 0.1f;
+            }
+            
+            // 2. Identify keywords and inject signal
+            String lower = text.toLowerCase();
+            Map<String, Integer> keywordIndexes = Map.of(
+                "summar", 100,
+                "legal", 200,
+                "payroll", 300,
+                "finance", 400,
+                "transla", 500,
+                "test", 600
+            );
+
+            for (Map.Entry<String, Integer> entry : keywordIndexes.entrySet()) {
+                if (lower.contains(entry.getKey())) {
+                    mockVec[entry.getValue()] = 10.0f;
+                }
+            }
+
+            // 3. Normalize vector
+            double sumSq = 0;
+            for (int i = 0; i < DIMENSIONS; i++) {
                 sumSq += mockVec[i] * mockVec[i];
             }
             double norm = Math.sqrt(sumSq);
@@ -57,7 +79,6 @@ public class OpenAiEmbeddingClient {
             }
             return mockVec;
         }
-
         ObjectNode payload = mapper.createObjectNode();
         payload.put("model", MODEL);
         ArrayNode inputArr = payload.putArray("input");

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const API_BASE = 'http://localhost:8091/api/v1/agents';
+const API_BASE = 'http://localhost:8091/api/v1';
 
 // SVG Icons
 const SearchIcon = () => (
@@ -12,6 +12,12 @@ const GridIcon = () => (
 const UploadIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
 );
+const ChatIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+);
+const ChartIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+);
 const SunIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
 );
@@ -20,7 +26,7 @@ const MoonIcon = () => (
 );
 
 function App() {
-  const [view, setView] = useState('marketplace'); // 'marketplace' | 'onboard'
+  const [view, setView] = useState('marketplace'); // 'marketplace' | 'onboard' | 'chat' | 'analytics'
   const [theme, setTheme] = useState(() => localStorage.getItem('symphony-theme') || 'dark');
   const [agents, setAgents] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,7 +57,20 @@ function App() {
   const [onboardLogs, setOnboardLogs] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState(null);
 
-  // Sync theme attribute with DOM and save to local storage
+  // Chat/Supervisor state
+  const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState([
+    { sender: 'supervisor', text: 'Hello! I am the SymphonyAI Supervisor. Explain your requirements, and I will route them to the appropriate enterprise agent.', time: new Date().toLocaleTimeString(), routing: null }
+  ]);
+  const [selectedRoutingMetadata, setSelectedRoutingMetadata] = useState(null);
+  const [chatLoading, setChatLoading] = useState(false);
+
+  // Gaps & Telemetry state
+  const [gaps, setGaps] = useState([]);
+  const [telemetry, setTelemetry] = useState([]);
+  const [clusteringLoading, setClusteringLoading] = useState(false);
+
+  // Sync theme
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('symphony-theme', theme);
@@ -61,11 +80,11 @@ function App() {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
-  // Fetch registered agents
+  // Fetch agents catalog
   const fetchAgents = async () => {
     setLoading(true);
     try {
-      const res = await fetch(API_BASE);
+      const res = await fetch(`${API_BASE}/agents`);
       if (res.ok) {
         const data = await res.json();
         setAgents(data);
@@ -77,14 +96,29 @@ function App() {
     }
   };
 
+  // Fetch gaps and telemetry
+  const fetchAnalytics = async () => {
+    try {
+      const resGaps = await fetch(`${API_BASE}/admin/gaps`);
+      if (resGaps.ok) setGaps(await resGaps.json());
+
+      const resTel = await fetch(`${API_BASE}/admin/telemetry`);
+      if (resTel.ok) setTelemetry(await resTel.json());
+    } catch (err) {
+      console.error("Failed loading analytics", err);
+    }
+  };
+
   useEffect(() => {
     if (view === 'marketplace') {
       fetchAgents();
       setSelectedAgent(null);
+    } else if (view === 'analytics') {
+      fetchAnalytics();
     }
   }, [view]);
 
-  // Semantic search query
+  // Search agents
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!searchQuery.trim()) {
@@ -93,51 +127,41 @@ function App() {
     }
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/search`, {
+      const res = await fetch(`${API_BASE}/agents/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: searchQuery, limit: 10 })
       });
       if (res.ok) {
-        const data = await res.json();
-        setAgents(data);
+        setAgents(await res.json());
       }
     } catch (err) {
-      console.error("Semantic search failed", err);
+      console.error("Search failed", err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Onboarding agent submission
+  // Onboard agent manifest
   const handleOnboard = async (e) => {
     e.preventDefault();
     setOnboardLogs([]);
-    
     const addLog = (text, type = 'info') => {
       setOnboardLogs(prev => [...prev, { text, type, time: new Date().toLocaleTimeString() }]);
     };
 
     try {
       addLog("Parsing manifest payload...", "info");
-      let parsed;
-      try {
-        parsed = JSON.parse(manifestText);
-      } catch (err) {
-        addLog("JSON Parse Error: Invalid format.", "error");
-        return;
-      }
-
+      let parsed = JSON.parse(manifestText);
       addLog(`Validating JSON Schema parameters for '${parsed.name || 'unnamed'}'...`, "info");
       if (!parsed.name || !parsed.description || !parsed.endpoints) {
-        addLog("Schema Error: Missing core properties (name, description, endpoints).", "error");
+        addLog("Schema Error: Missing core properties.", "error");
         return;
       }
       addLog("Validation PASS: Schema matches specifications.", "success");
 
-      addLog(`Loopback Check: Querying agent health at ${parsed.endpoints.health}...`, "info");
-
-      const res = await fetch(`${API_BASE}/onboard`, {
+      addLog(`Loopback Check: Querying health at ${parsed.endpoints.health}...`, "info");
+      const res = await fetch(`${API_BASE}/agents/onboard`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(parsed)
@@ -146,27 +170,81 @@ function App() {
       if (res.ok) {
         const data = await res.json();
         addLog(`Health Status: Endpoint active (HTTP 200 OK).`, "success");
-        addLog(`Embedding: Created vector representation in pgvector index.`, "success");
-        addLog(`Registry commit: Agent '${data.name}' registered with ID: ${data.id}`, "success");
+        addLog(`Embedding: Vector representation generated.`, "success");
+        addLog(`Registry: Agent '${data.name}' registered (ID: ${data.id})`, "success");
         addLog("Onboarding success.", "success");
       } else {
-        const errText = await res.text();
-        addLog(`Verification Failed: ${errText || 'Unreachable health endpoint.'}`, "error");
+        addLog(`Verification Failed: Endpoint unreachable or validation mismatch.`, "error");
       }
     } catch (err) {
       addLog(`Network Failure: ${err.message}`, "error");
     }
   };
 
-  // Filtering category list (client-side fallback logic)
+  // Conversational Supervisor routing
+  const handleChatSend = async (e) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+
+    const userQuery = chatInput;
+    setChatInput('');
+    setChatMessages(prev => [...prev, { sender: 'user', text: userQuery, time: new Date().toLocaleTimeString() }]);
+    setChatLoading(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/supervisor/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: userQuery })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const msg = {
+          sender: 'supervisor',
+          text: data.textResponse,
+          time: new Date().toLocaleTimeString(),
+          routing: {
+            agent: data.matchedAgent,
+            params: data.extractedParameters,
+            latency: data.latencyMs,
+            status: data.status
+          }
+        };
+        setChatMessages(prev => [...prev, msg]);
+        setSelectedRoutingMetadata(msg.routing);
+      }
+    } catch (err) {
+      console.error("Chat failure", err);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  // Trigger manual gap clustering
+  const triggerClustering = async () => {
+    setClusteringLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/gaps/trigger-cluster`, { method: 'POST' });
+      if (res.ok) {
+        await fetchAnalytics();
+        alert("Innovation gap clustering completed successfully!");
+      }
+    } catch (err) {
+      console.error("Clustering trigger failed", err);
+    } finally {
+      setClusteringLoading(false);
+    }
+  };
+
   const filteredAgents = agents.filter(a => {
     if (selectedCategory === 'All') return true;
-    const nameLower = a.name.toLowerCase();
-    const descLower = a.description.toLowerCase();
-    if (selectedCategory === 'Legal') return nameLower.includes('legal') || descLower.includes('legal');
-    if (selectedCategory === 'HR') return nameLower.includes('hr') || nameLower.includes('payroll') || descLower.includes('payroll');
-    if (selectedCategory === 'Finance') return nameLower.includes('finance') || descLower.includes('finance');
-    if (selectedCategory === 'DevTools') return nameLower.includes('summary') || nameLower.includes('parse') || descLower.includes('summar');
+    const name = a.name.toLowerCase();
+    const desc = a.description.toLowerCase();
+    if (selectedCategory === 'Legal') return name.includes('legal') || desc.includes('legal');
+    if (selectedCategory === 'HR') return name.includes('hr') || name.includes('payroll') || desc.includes('payroll');
+    if (selectedCategory === 'Finance') return name.includes('finance') || desc.includes('finance');
+    if (selectedCategory === 'DevTools') return name.includes('summary') || name.includes('parse') || desc.includes('summar');
     return true;
   });
 
@@ -179,21 +257,23 @@ function App() {
           <span>SymphonyAI</span>
         </div>
         
-        <nav style={{ marginTop: '1.5rem' }}>
+        <nav style={{ marginTop: '1rem', flexGrow: 1 }}>
           <ul className="nav-links">
-            <li 
-              className={`nav-item ${view === 'marketplace' ? 'active' : ''}`}
-              onClick={() => setView('marketplace')}
-            >
+            <li className={`nav-item ${view === 'marketplace' ? 'active' : ''}`} onClick={() => setView('marketplace')}>
               <GridIcon />
               <span>Registry Hub</span>
             </li>
-            <li 
-              className={`nav-item ${view === 'onboard' ? 'active' : ''}`}
-              onClick={() => setView('onboard')}
-            >
+            <li className={`nav-item ${view === 'onboard' ? 'active' : ''}`} onClick={() => setView('onboard')}>
               <UploadIcon />
               <span>Onboard Agent</span>
+            </li>
+            <li className={`nav-item ${view === 'chat' ? 'active' : ''}`} onClick={() => setView('chat')}>
+              <ChatIcon />
+              <span>Supervisor Chat</span>
+            </li>
+            <li className={`nav-item ${view === 'analytics' ? 'active' : ''}`} onClick={() => setView('analytics')}>
+              <ChartIcon />
+              <span>Demand & Gaps</span>
             </li>
           </ul>
         </nav>
@@ -201,33 +281,24 @@ function App() {
         {/* Theme mode toggle */}
         <button className="theme-toggle-btn" onClick={toggleTheme}>
           {theme === 'dark' ? (
-            <>
-              <SunIcon />
-              <span>Light Mode</span>
-            </>
+            <><SunIcon /><span>Light Theme</span></>
           ) : (
-            <>
-              <MoonIcon />
-              <span>Dark Mode</span>
-            </>
+            <><MoonIcon /><span>Dark Theme</span></>
           )}
         </button>
-
-        <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '1rem', textAlign: 'center' }}>
-          Workspace: default_ws
-        </div>
       </aside>
 
-      {/* Main panel layout */}
+      {/* Main Panel Content */}
       <main className="main-content">
-        {view === 'marketplace' ? (
+        
+        {/* VIEW 1: MARKETPLACE */}
+        {view === 'marketplace' && (
           <>
             <div>
               <h1 style={{ fontSize: '2.5rem', fontWeight: '700', marginBottom: '0.5rem' }}>Registry Directory</h1>
               <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>Central catalog of all registered internal enterprise AI agents.</p>
             </div>
 
-            {/* Semantic Search Box */}
             <form onSubmit={handleSearch} className="search-container">
               <input 
                 type="text" 
@@ -236,42 +307,28 @@ function App() {
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
               />
-              <button type="submit" className="btn btn-primary">
-                <SearchIcon />
-                <span>Search</span>
-              </button>
+              <button type="submit" className="btn btn-primary"><SearchIcon /><span>Search</span></button>
             </form>
 
-            {/* Category pills switcher */}
             <div className="category-pills">
               {['All', 'Legal', 'HR', 'Finance', 'DevTools'].map(cat => (
-                <span 
-                  key={cat}
-                  className={`pill ${selectedCategory === cat ? 'active' : ''}`}
-                  onClick={() => setSelectedCategory(cat)}
-                >
+                <span key={cat} className={`pill ${selectedCategory === cat ? 'active' : ''}`} onClick={() => setSelectedCategory(cat)}>
                   {cat}
                 </span>
               ))}
             </div>
 
             {loading ? (
-              <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-                Querying registry database...
-              </div>
+              <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Querying database...</div>
             ) : (
               <div className="agent-grid">
                 {filteredAgents.length === 0 ? (
                   <div style={{ gridColumn: '1/-1', padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)' }}>
-                    No registered agents found. Try another search or register a new manifest!
+                    No matching agents found. Try registering a new manifest!
                   </div>
                 ) : (
                   filteredAgents.map(agent => (
-                    <div 
-                      key={agent.id} 
-                      className="agent-card"
-                      onClick={() => setSelectedAgent(agent)}
-                    >
+                    <div key={agent.id} className="agent-card" onClick={() => setSelectedAgent(agent)}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
                           <h3 style={{ fontSize: '1.2rem', fontWeight: '600', marginBottom: '0.2rem' }}>{agent.name}</h3>
@@ -281,15 +338,10 @@ function App() {
                           {agent.status}
                         </span>
                       </div>
-                      
-                      <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', flexGrow: 1, lineBreak: 'anywhere', lineHeight: '1.4' }}>
-                        {agent.description}
-                      </p>
-
+                      <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', flexGrow: 1, lineBreak: 'anywhere' }}>{agent.description}</p>
                       {agent.similarity < 1.0 && agent.similarity > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--accent-primary)', fontWeight: '500' }}>
-                          <span>Similarity Match:</span>
-                          <span>{Math.round(agent.similarity * 100)}%</span>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--accent-primary)', fontWeight: '500' }}>
+                          Match Score: {Math.round(agent.similarity * 100)}%
                         </div>
                       )}
                     </div>
@@ -298,17 +350,10 @@ function App() {
               </div>
             )}
 
-            {/* Agent Info Detail Modal Overlay */}
+            {/* Agent Detail Modal */}
             {selectedAgent && (
-              <div 
-                style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
-                onClick={() => setSelectedAgent(null)}
-              >
-                <div 
-                  className="glass-card" 
-                  style={{ width: '100%', maxWidth: '550px', padding: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', margin: '1rem', background: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
-                  onClick={e => e.stopPropagation()}
-                >
+              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={() => setSelectedAgent(null)}>
+                <div className="glass-card" style={{ width: '100%', maxWidth: '550px', padding: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', margin: '1rem', background: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }} onClick={e => e.stopPropagation()}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h2 style={{ fontSize: '1.6rem' }}>{selectedAgent.name}</h2>
                     <span className="badge badge-active">{selectedAgent.status}</span>
@@ -321,7 +366,7 @@ function App() {
                     <h4 style={{ color: 'var(--text-secondary)', marginBottom: '0.4rem', fontSize: '0.85rem', textTransform: 'uppercase' }}>Endpoints</h4>
                     <div style={{ fontFamily: 'monospace', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', backgroundColor: 'var(--bg-primary)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
                       <div>Execution: <span style={{ color: 'var(--accent-primary)' }}>{selectedAgent.endpointUrl}</span></div>
-                      <div>Health Check: <span style={{ color: 'var(--accent-primary)' }}>{selectedAgent.healthCheckUrl}</span></div>
+                      <div>Health: <span style={{ color: 'var(--accent-primary)' }}>{selectedAgent.healthCheckUrl}</span></div>
                     </div>
                   </div>
                   <div>
@@ -338,7 +383,7 @@ function App() {
                         <tbody>
                           {selectedAgent.parameters.map(p => (
                             <tr key={p.name} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                              <td style={{ padding: '0.5rem 0', fontFamily: 'monospace', fontWeight: '500' }}>{p.name}</td>
+                              <td style={{ padding: '0.5rem 0', fontFamily: 'monospace' }}>{p.name}</td>
                               <td style={{ padding: '0.5rem 0', color: 'var(--accent-primary)' }}>{p.type}</td>
                               <td style={{ padding: '0.5rem 0' }}>{p.required ? 'Yes' : 'No'}</td>
                             </tr>
@@ -349,15 +394,17 @@ function App() {
                       <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>No parameter configuration specified.</p>
                     )}
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-                    <button className="btn btn-secondary" onClick={() => setSelectedAgent(null)}>Close Details</button>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button className="btn btn-secondary" onClick={() => setSelectedAgent(null)}>Close</button>
                   </div>
                 </div>
               </div>
             )}
           </>
-        ) : (
-          /* ONBOARDING CREATOR CONSOLE VIEW */
+        )}
+
+        {/* VIEW 2: ONBOARDING */}
+        {view === 'onboard' && (
           <>
             <div>
               <h1 style={{ fontSize: '2.5rem', fontWeight: '700', marginBottom: '0.5rem' }}>Agent Registration</h1>
@@ -365,7 +412,6 @@ function App() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '2.5rem', alignItems: 'start' }}>
-              {/* Form Input Section */}
               <form onSubmit={handleOnboard} className="glass-card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', background: 'var(--bg-secondary)' }}>
                 <div className="form-group">
                   <label>Agent Manifest JSON Spec</label>
@@ -377,22 +423,17 @@ function App() {
                     onChange={e => setManifestText(e.target.value)}
                   />
                 </div>
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
-                  <button type="submit" className="btn btn-primary" style={{ flexGrow: 1, justifyContent: 'center' }}>
-                    <UploadIcon />
-                    <span>Upload & Register</span>
-                  </button>
-                </div>
+                <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center' }}>
+                  <UploadIcon />
+                  <span>Upload & Register</span>
+                </button>
               </form>
 
-              {/* Validation Logs Terminal */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: '600' }}>Verification Terminal</h3>
                 <div className="terminal-console">
                   {onboardLogs.length === 0 ? (
-                    <div style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>
-                      Logs will write here once registration is triggered...
-                    </div>
+                    <div style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>Logs will display here...</div>
                   ) : (
                     onboardLogs.map((log, idx) => (
                       <div key={idx} className={`terminal-line ${log.type}`}>
@@ -406,6 +447,192 @@ function App() {
             </div>
           </>
         )}
+
+        {/* VIEW 3: SUPERVISOR CHAT */}
+        {view === 'chat' && (
+          <>
+            <div>
+              <h1 style={{ fontSize: '2.5rem', fontWeight: '700', marginBottom: '0.5rem' }}>Supervisor Orchestrator</h1>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>Explain your requirement. The Supervisor will automatically resolve and route payload to matching agents.</p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 0.7fr', gap: '2.5rem', height: '500px', alignItems: 'stretch' }}>
+              
+              {/* Chat Thread Panel */}
+              <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg-secondary)', overflow: 'hidden' }}>
+                
+                {/* Message display scroll panel */}
+                <div style={{ flexGrow: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem', paddingRight: '0.5rem' }}>
+                  {chatMessages.map((msg, idx) => (
+                    <div 
+                      key={idx} 
+                      style={{ 
+                        alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start',
+                        backgroundColor: msg.sender === 'user' ? 'var(--accent-glow)' : 'var(--bg-primary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: '1rem',
+                        maxWidth: '85%',
+                        cursor: msg.routing ? 'pointer' : 'default'
+                      }}
+                      onClick={() => msg.routing && setSelectedRoutingMetadata(msg.routing)}
+                    >
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                        {msg.sender === 'user' ? 'You' : 'Supervisor'} • {msg.time}
+                      </div>
+                      <p style={{ fontSize: '0.95rem', lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>{msg.text}</p>
+                      
+                      {msg.routing && (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', fontWeight: 'bold' }}>
+                            [Inspect Routing Log]
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {chatLoading && (
+                    <div style={{ alignSelf: 'flex-start', color: 'var(--text-secondary)', fontSize: '0.9rem', fontStyle: 'italic' }}>
+                      Supervisor is routing payload...
+                    </div>
+                  )}
+                </div>
+
+                {/* Input Text Form */}
+                <form onSubmit={handleChatSend} style={{ display: 'flex', gap: '0.75rem' }}>
+                  <input 
+                    type="text" 
+                    className="search-input"
+                    placeholder="Describe requirement (e.g. 'summarize PDF at url https://files/doc.pdf')"
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                  />
+                  <button type="submit" className="btn btn-primary">Send</button>
+                </form>
+              </div>
+
+              {/* Execution Inspector Side Panel */}
+              <div className="glass-card" style={{ padding: '1.5rem', background: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <h3 style={{ fontSize: '1.1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>Execution Inspector</h3>
+                
+                {selectedRoutingMetadata ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.9rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Status:</span>
+                      <span className={`badge ${selectedRoutingMetadata.status === 'routed' ? 'badge-active' : 'badge-unhealthy'}`}>
+                        {selectedRoutingMetadata.status}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-secondary)' }}>Routed Agent:</span>
+                      <div style={{ fontWeight: '600', marginTop: '0.2rem' }}>{selectedRoutingMetadata.agent || 'None (No Match)'}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-secondary)' }}>Latency:</span>
+                      <div style={{ fontWeight: '500', marginTop: '0.2rem' }}>{selectedRoutingMetadata.latency} ms</div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-secondary)' }}>Extracted JSON Parameters:</span>
+                      <pre style={{ 
+                        marginTop: '0.5rem', 
+                        fontFamily: 'monospace', 
+                        fontSize: '0.8rem', 
+                        backgroundColor: 'var(--bg-primary)', 
+                        padding: '0.75rem', 
+                        borderRadius: 'var(--radius-sm)', 
+                        border: '1px solid var(--border-color)',
+                        overflowX: 'auto',
+                        whiteSpace: 'pre-wrap'
+                      }}>
+                        {JSON.stringify(selectedRoutingMetadata.params, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ color: 'var(--text-secondary)', fontStyle: 'italic', fontSize: '0.9rem', textAlign: 'center', marginTop: '4rem' }}>
+                    Select a routed message response to inspect payload metadata.
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </>
+        )}
+
+        {/* VIEW 4: DEMAND & GAPS */}
+        {view === 'analytics' && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h1 style={{ fontSize: '2.5rem', fontWeight: '700', marginBottom: '0.5rem' }}>Demand & Innovation Gaps</h1>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>Data-driven corporate backlog mapped from unaddressed search queries.</p>
+              </div>
+              <button 
+                className="btn btn-secondary" 
+                onClick={triggerClustering}
+                disabled={clusteringLoading}
+              >
+                {clusteringLoading ? 'Clustering...' : 'Trigger Gap Clustering'}
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '2.5rem', alignItems: 'start' }}>
+              
+              {/* Leaderboard Gaps Table */}
+              <div className="glass-card" style={{ padding: '2rem', background: 'var(--bg-secondary)' }}>
+                <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>Capability Gaps Leaderboard</h3>
+                {gaps.length === 0 ? (
+                  <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', textAlign: 'center', padding: '2rem' }}>
+                    No unaddressed capability gaps recorded yet.
+                  </p>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>Capability Theme</th>
+                        <th style={{ padding: '0.75rem 0.5rem' }}>Summary Details</th>
+                        <th style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>Weekly Hits</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {gaps.map(g => (
+                        <tr key={g.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '1rem 0.5rem', fontWeight: '600' }}>{g.title}</td>
+                          <td style={{ padding: '1rem 0.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{g.summary}</td>
+                          <td style={{ padding: '1rem 0.5rem', textAlign: 'center', fontWeight: 'bold', color: 'var(--accent-primary)' }}>{g.countFrequency}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Telemetry Metrics List */}
+              <div className="glass-card" style={{ padding: '2rem', background: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <h3 style={{ fontSize: '1.2rem' }}>Registered Agent Telemetry</h3>
+                {telemetry.length === 0 ? (
+                  <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', textAlign: 'center' }}>No execution telemetry logs found.</p>
+                ) : (
+                  telemetry.map((t, idx) => (
+                    <div key={idx} style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+                      <div style={{ fontWeight: '600', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
+                        Agent Key: <span style={{ fontFamily: 'monospace', color: 'var(--accent-primary)' }}>{t.agentid}</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.85rem' }}>
+                        <div>Runs Count: <strong>{t.countruns}</strong></div>
+                        <div>Success Rate: <strong>{Math.round(t.successrate)}%</strong></div>
+                        <div>Avg Latency: <strong>{Math.round(t.avglatency)} ms</strong></div>
+                        <div>Token Cost: <strong>${parseFloat(t.totalcost).toFixed(4)}</strong></div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+            </div>
+          </>
+        )}
+
       </main>
     </div>
   );

@@ -191,6 +191,10 @@ public class AgentService {
     }
 
     private void pingHealthEndpoint(String healthUrl) {
+        if (healthUrl == null || healthUrl.toLowerCase().contains("mock") || healthUrl.toLowerCase().contains("localhost") || healthUrl.toLowerCase().contains("127.0.0.1")) {
+            log.info("Skipping health check ping for mock or local endpoint: {}", healthUrl);
+            return;
+        }
         log.info("Pinging health check endpoint: {}", healthUrl);
         Request request = new Request.Builder()
                 .url(healthUrl)
