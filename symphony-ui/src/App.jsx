@@ -10,13 +10,19 @@ const UploadIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
 );
 const SunIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
 );
 const MoonIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
 );
-const LogoutIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+const GridIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+);
+const ChatIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+);
+const ChartIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
 );
 
 function App() {
@@ -60,6 +66,7 @@ function App() {
     { sender: 'supervisor', text: 'Hello! I am the SymphonyAI Supervisor. Explain your requirements, and I will route them to the appropriate enterprise agent.', time: new Date().toLocaleTimeString(), routing: null }
   ]);
   const [selectedRoutingMetadata, setSelectedRoutingMetadata] = useState(null);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
 
   // Gaps & Telemetry state
@@ -224,6 +231,7 @@ function App() {
         };
         setChatMessages(prev => [...prev, msg]);
         setSelectedRoutingMetadata(msg.routing);
+        setInspectorOpen(true);
       }
     } catch (err) {
       console.error("Chat failure", err);
@@ -259,255 +267,275 @@ function App() {
     return true;
   });
 
+  // Calculate aggregated analytics parameters
+  const totalUnaddressedHits = gaps.reduce((acc, g) => acc + g.countFrequency, 0);
+  const avgLatency = telemetry.length > 0 
+      ? Math.round(telemetry.reduce((acc, t) => acc + t.avglatency, 0) / telemetry.length) 
+      : 0;
+
   return (
-    <div>
-      {/* Premium Top Navigation Header */}
-      <header className="top-header">
-        <div className="brand-section">
-          <div className="logo-badge">S</div>
-          <div className="brand-titles">
-            <span className="brand-name">Symphony AI</span>
-            <span className="brand-subtext">Enterprise agent directory · supervisor orchestrator</span>
-          </div>
+    <div className="app-container">
+      {/* Structural Persistent Left Sidebar */}
+      <aside className="sidebar">
+        <div className="brand-wrapper" style={{ marginBottom: '2rem' }}>
+          <div className="logo-icon">S</div>
+          <span className="brand-title">SymphonyAI</span>
         </div>
 
-        {/* Navigation Tabs */}
+        <span className="nav-group-title">Enterprise Tools</span>
         <nav>
-          <ul className="nav-tabs">
-            <li className={`nav-tab ${view === 'marketplace' ? 'active' : ''}`} onClick={() => setView('marketplace')}>
+          <ul className="nav-links">
+            <li className={`nav-item ${view === 'marketplace' ? 'active' : ''}`} onClick={() => setView('marketplace')}>
+              <GridIcon />
               <span>Registry Hub</span>
             </li>
-            <li className={`nav-tab ${view === 'onboard' ? 'active' : ''}`} onClick={() => setView('onboard')}>
-              <span>Onboard Agent</span>
-            </li>
-            <li className={`nav-tab ${view === 'chat' ? 'active' : ''}`} onClick={() => setView('chat')}>
+            <li className={`nav-item ${view === 'chat' ? 'active' : ''}`} onClick={() => setView('chat')}>
+              <ChatIcon />
               <span>Supervisor Chat</span>
-            </li>
-            <li className={`nav-tab ${view === 'analytics' ? 'active' : ''}`} onClick={() => setView('analytics')}>
-              <span>Demand & Gaps</span>
             </li>
           </ul>
         </nav>
 
-        {/* Action Controls */}
-        <div className="header-actions">
-          {/* Workspace badge */}
+        <span className="nav-group-title">Console Admin</span>
+        <nav>
+          <ul className="nav-links">
+            <li className={`nav-item ${view === 'onboard' ? 'active' : ''}`} onClick={() => setView('onboard')}>
+              <UploadIcon />
+              <span>Onboard Agent</span>
+            </li>
+            <li className={`nav-item ${view === 'analytics' ? 'active' : ''}`} onClick={() => setView('analytics')}>
+              <ChartIcon />
+              <span>Demand & Gaps</span>
+            </li>
+          </ul>
+        </nav>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="main-content-layout">
+        
+        {/* Top Header Row */}
+        <header className="top-header">
           <div className="workspace-pill">
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }}></span>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--success)' }}></span>
             <span>default_ws</span>
           </div>
 
-          {/* User Role Selector */}
-          <div className="role-selector-wrapper">
-            <select value={userRole} onChange={e => setUserRole(e.target.value)}>
-              <option value="Employee">Employee (Standard)</option>
-              <option value="HR">HR Specialist</option>
-              <option value="Admin">Administrator</option>
-            </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+            {/* User SSO Role */}
+            <div className="role-selector-wrapper">
+              <select value={userRole} onChange={e => setUserRole(e.target.value)}>
+                <option value="Employee">Employee (Standard)</option>
+                <option value="HR">HR Specialist</option>
+                <option value="Admin">Administrator</option>
+              </select>
+            </div>
+
+            {/* Theme Toggle Button */}
+            <button className="icon-btn" onClick={toggleTheme} title="Toggle theme">
+              {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+            </button>
+
+            <span style={{ fontSize: '0.85rem', fontWeight: '500', color: 'var(--text-secondary)' }}>shubham</span>
           </div>
+        </header>
 
-          {/* Theme switcher toggle */}
-          <button className="icon-btn" onClick={toggleTheme} title="Toggle theme">
-            {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-          </button>
-
-          <span style={{ fontSize: '0.85rem', fontWeight: '500', color: 'var(--text-secondary)' }}>shubham</span>
-          <button className="icon-btn" title="Sign out">
-            <LogoutIcon />
-          </button>
-        </div>
-      </header>
-
-      {/* Main Panel Content Wrapper */}
-      <main className="main-wrapper">
-        
-        {/* VIEW 1: REGISTRY HUB */}
-        {view === 'marketplace' && (
-          <>
-            <div className="section-header">
-              <h1 className="section-title">Internal Registry</h1>
-              <p className="section-desc">Search, filter, and discover all employee-built AI workflows registered inside your enterprise workspace.</p>
-            </div>
-
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <form onSubmit={handleSearch} className="search-container" style={{ maxWidth: '500px', flexGrow: 1 }}>
-                <input 
-                  type="text" 
-                  className="search-input"
-                  placeholder="Search agents semantically (e.g. 'translate legal contracts')"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                />
-                <button type="submit" className="btn btn-primary" style={{ height: '100%' }}><SearchIcon /></button>
-              </form>
-
-              <div className="category-pills">
-                {['All', 'Legal', 'HR', 'Finance', 'DevTools'].map(cat => (
-                  <span key={cat} className={`pill ${selectedCategory === cat ? 'active' : ''}`} onClick={() => setSelectedCategory(cat)}>
-                    {cat}
-                  </span>
-                ))}
+        {/* Dynamic Canvas Container */}
+        <div className="canvas-wrapper">
+          
+          {/* VIEW 1: MARKETPLACE */}
+          {view === 'marketplace' && (
+            <>
+              <div className="section-header">
+                <h1 className="page-title">Internal Registry</h1>
+                <p className="page-desc">Search and discover all employee-built AI tools registered inside your enterprise workspace.</p>
               </div>
-            </div>
 
-            {loading ? (
-              <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Querying database...</div>
-            ) : (
-              <div className="agent-grid">
-                {filteredAgents.length === 0 ? (
-                  <div style={{ gridColumn: '1/-1', padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-lg)' }}>
-                    No matching agents found. Try registering a new manifest!
-                  </div>
-                ) : (
-                  filteredAgents.map(agent => (
-                    <div key={agent.id} className="premium-card" onClick={() => setSelectedAgent(agent)}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div>
-                          <h3 style={{ fontSize: '1.05rem', fontWeight: '600', color: 'var(--text-primary)' }}>{agent.name}</h3>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>v{agent.version}</span>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.3rem' }}>
-                          <span className={`status-pill ${agent.status === 'ACTIVE' ? 'status-active' : 'status-unhealthy'}`}>
-                            <span className="status-dot"></span>
-                            {agent.status}
-                          </span>
-                          {agent.requiresRbac && (
-                            <span className="badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.15)', fontSize: '0.65rem' }}>
-                              RBAC
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', flexGrow: 1, lineBreak: 'anywhere', lineHeight: '1.4' }}>{agent.description}</p>
-                      {agent.similarity < 1.0 && agent.similarity > 0 && (
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
-                          Match Score: <span style={{ color: 'var(--text-primary)' }}>{Math.round(agent.similarity * 100)}%</span>
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-
-            {/* Agent Detail Modal */}
-            {selectedAgent && (
-              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={() => setSelectedAgent(null)}>
-                <div className="premium-card" style={{ width: '100%', maxWidth: '520px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', margin: '1rem', background: 'var(--bg-secondary)', borderColor: 'var(--border-color)', cursor: 'default' }} onClick={e => e.stopPropagation()}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h2 style={{ fontSize: '1.4rem', fontWeight: '600' }}>{selectedAgent.name}</h2>
-                    <span className="status-pill status-active"><span className="status-dot"></span>{selectedAgent.status}</span>
-                  </div>
-                  <div>
-                    <h4 style={{ color: 'var(--text-secondary)', marginBottom: '0.3rem', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: '600' }}>Description</h4>
-                    <p style={{ fontSize: '0.9rem', lineHeight: '1.4' }}>{selectedAgent.description}</p>
-                  </div>
-                  {selectedAgent.requiresRbac && (
-                    <div>
-                      <h4 style={{ color: '#ef4444', marginBottom: '0.3rem', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: '600' }}>Governance Rules</h4>
-                      <p style={{ fontSize: '0.85rem' }}>
-                        Execution restricted to roles: 
-                        <strong style={{ marginLeft: '0.4rem' }}>{selectedAgent.authorizedRoles?.join(', ') || 'None'}</strong>
-                      </p>
-                    </div>
-                  )}
-                  <div>
-                    <h4 style={{ color: 'var(--text-secondary)', marginBottom: '0.3rem', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: '600' }}>Endpoints</h4>
-                    <div style={{ fontFamily: 'monospace', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', backgroundColor: 'var(--bg-primary)', padding: '0.6rem 0.8rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                      <div>Execution: <span style={{ color: 'var(--text-muted)' }}>{selectedAgent.endpointUrl}</span></div>
-                      <div>Health: <span style={{ color: 'var(--text-muted)' }}>{selectedAgent.healthCheckUrl}</span></div>
-                    </div>
-                  </div>
-                  <div>
-                    <h4 style={{ color: 'var(--text-secondary)', marginBottom: '0.4rem', fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: '600' }}>Parameters Schema</h4>
-                    {selectedAgent.parameters && selectedAgent.parameters.length > 0 ? (
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                        <thead>
-                          <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left', color: 'var(--text-secondary)' }}>
-                            <th style={{ padding: '0.4rem 0' }}>Name</th>
-                            <th style={{ padding: '0.4rem 0' }}>Type</th>
-                            <th style={{ padding: '0.4rem 0' }}>Required</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedAgent.parameters.map(p => (
-                            <tr key={p.name} style={{ borderBottom: '1px solid var(--border-muted)' }}>
-                              <td style={{ padding: '0.4rem 0', fontFamily: 'monospace' }}>{p.name}</td>
-                              <td style={{ padding: '0.4rem 0', color: 'var(--text-muted)' }}>{p.type}</td>
-                              <td style={{ padding: '0.4rem 0' }}>{p.required ? 'Yes' : 'No'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    ) : (
-                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>No parameter configuration specified.</p>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-                    <button className="btn" onClick={() => setSelectedAgent(null)}>Close</button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* VIEW 2: ONBOARDING */}
-        {view === 'onboard' && (
-          <>
-            <div className="section-header">
-              <h1 className="section-title">Onboard Agent</h1>
-              <p className="section-desc">Drop manifest schemas in. Registry pings endpoints, validates JSON models, and indexes descriptions semantically.</p>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '2rem', alignItems: 'start' }}>
-              <div className="ingest-drop-zone" style={{ width: '100%' }}>
-                <div style={{ width: '100%', textAlign: 'left' }}>
-                  <label style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.5rem' }}>agent-manifest.json Spec</label>
-                  <textarea 
-                    rows="14" 
-                    className="form-control"
-                    style={{ fontFamily: 'monospace', fontSize: '0.8rem', resize: 'vertical', width: '100%', backgroundColor: 'var(--bg-secondary)' }}
-                    value={manifestText}
-                    onChange={e => setManifestText(e.target.value)}
+              <div style={{ display: 'flex', gap: '0.75rem', flexDirection: 'column', marginBottom: '2rem' }}>
+                <form onSubmit={handleSearch} className="search-container" style={{ maxWidth: '600px' }}>
+                  <input 
+                    type="text" 
+                    className="search-input"
+                    placeholder="Search agents semantically (e.g. 'process payroll')"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
                   />
+                  <button type="submit" className="btn btn-primary" style={{ border: 'none' }}><SearchIcon /></button>
+                </form>
+
+                <div className="category-pills" style={{ marginTop: '0.5rem' }}>
+                  {['All', 'Legal', 'HR', 'Finance', 'DevTools'].map(cat => (
+                    <span key={cat} className={`pill ${selectedCategory === cat ? 'active' : ''}`} onClick={() => setSelectedCategory(cat)}>
+                      {cat}
+                    </span>
+                  ))}
                 </div>
-                <button onClick={handleOnboard} className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>
-                  <UploadIcon />
-                  <span>Register Manifest</span>
-                </button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <h3 style={{ fontSize: '0.95rem', fontWeight: '600', color: 'var(--text-secondary)' }}>Verification Logs</h3>
-                <div className="terminal-console" style={{ height: '370px' }}>
-                  {onboardLogs.length === 0 ? (
-                    <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Logs will display here...</div>
+              {loading ? (
+                <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Querying database...</div>
+              ) : (
+                <div className="agent-grid">
+                  {filteredAgents.length === 0 ? (
+                    <div style={{ gridColumn: '1/-1', padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-lg)' }}>
+                      No matching agents found. Try registering a new manifest!
+                    </div>
                   ) : (
-                    onboardLogs.map((log, idx) => (
-                      <div key={idx} className={`terminal-line ${log.type}`}>
-                        <span style={{ color: 'var(--text-muted)', marginRight: '0.5rem' }}>[{log.time}]</span>
-                        <span>{log.text}</span>
+                    filteredAgents.map(agent => (
+                      <div key={agent.id} className="premium-card" onClick={() => setSelectedAgent(agent)}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <h3 style={{ fontSize: '0.975rem', fontWeight: '600', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{agent.name}</h3>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>v{agent.version}</span>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.2rem' }}>
+                            <span className={`status-pill ${agent.status === 'ACTIVE' ? 'status-active' : 'status-unhealthy'}`}>
+                              <span className="status-dot"></span>
+                              {agent.status}
+                            </span>
+                            {agent.requiresRbac && (
+                              <span className="badge" style={{ backgroundColor: 'rgba(186, 26, 26, 0.08)', color: 'var(--error)', border: '1px solid rgba(186, 26, 26, 0.15)', fontSize: '0.65rem', padding: '0.1rem 0.3rem', borderRadius: '3px' }}>
+                                RBAC
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', flexGrow: 1, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', lineHeight: '1.4', margin: '0.75rem 0' }}>
+                          {agent.description}
+                        </p>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-muted)', paddingTop: '0.6rem' }}>
+                          {agent.similarity < 1.0 && agent.similarity > 0 ? (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                              Match: <strong>{Math.round(agent.similarity * 100)}%</strong>
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Semantic Match</span>
+                          )}
+                          <span style={{ fontSize: '0.75rem', color: 'var(--accent-secondary)', fontWeight: '600' }}>Inspect Details</span>
+                        </div>
                       </div>
                     ))
                   )}
                 </div>
+              )}
+
+              {/* Agent Detail Modal */}
+              {selectedAgent && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={() => setSelectedAgent(null)}>
+                  <div className="premium-card" style={{ width: '100%', maxWidth: '520px', padding: '2rem', height: 'auto', display: 'flex', flexDirection: 'column', gap: '1.25rem', margin: '1rem', background: 'var(--bg-secondary)', borderColor: 'var(--border-color)', cursor: 'default' }} onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h2 style={{ fontSize: '1.25rem', fontWeight: '600' }}>{selectedAgent.name}</h2>
+                      <span className="status-pill status-active"><span className="status-dot"></span>{selectedAgent.status}</span>
+                    </div>
+                    <div>
+                      <h4 style={{ color: 'var(--text-secondary)', marginBottom: '0.3rem', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: '600' }}>Description</h4>
+                      <p style={{ fontSize: '0.85rem', lineHeight: '1.4' }}>{selectedAgent.description}</p>
+                    </div>
+                    {selectedAgent.requiresRbac && (
+                      <div>
+                        <h4 style={{ color: 'var(--error)', marginBottom: '0.3rem', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: '600' }}>Governance Rules</h4>
+                        <p style={{ fontSize: '0.825rem' }}>
+                          Execution restricted to roles: 
+                          <strong style={{ marginLeft: '0.4rem' }}>{selectedAgent.authorizedRoles?.join(', ') || 'None'}</strong>
+                        </p>
+                      </div>
+                    )}
+                    <div>
+                      <h4 style={{ color: 'var(--text-secondary)', marginBottom: '0.3rem', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: '600' }}>Endpoints</h4>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', backgroundColor: 'var(--bg-primary)', padding: '0.6rem 0.8rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                        <div>Execution: <span style={{ color: 'var(--text-muted)' }}>{selectedAgent.endpointUrl}</span></div>
+                        <div>Health: <span style={{ color: 'var(--text-muted)' }}>{selectedAgent.healthCheckUrl}</span></div>
+                      </div>
+                    </div>
+                    <div>
+                      <h4 style={{ color: 'var(--text-secondary)', marginBottom: '0.4rem', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: '600' }}>Parameters Schema</h4>
+                      {selectedAgent.parameters && selectedAgent.parameters.length > 0 ? (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left', color: 'var(--text-secondary)' }}>
+                              <th style={{ padding: '0.4rem 0' }}>Name</th>
+                              <th style={{ padding: '0.4rem 0' }}>Type</th>
+                              <th style={{ padding: '0.4rem 0' }}>Required</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selectedAgent.parameters.map(p => (
+                              <tr key={p.name} style={{ borderBottom: '1px solid var(--border-muted)' }}>
+                                <td style={{ padding: '0.4rem 0', fontFamily: 'monospace' }}>{p.name}</td>
+                                <td style={{ padding: '0.4rem 0', color: 'var(--text-muted)' }}>{p.type}</td>
+                                <td style={{ padding: '0.4rem 0' }}>{p.required ? 'Yes' : 'No'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>No parameter configuration specified.</p>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                      <button className="btn" onClick={() => setSelectedAgent(null)}>Close</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* VIEW 2: ONBOARDING */}
+          {view === 'onboard' && (
+            <>
+              <div className="section-header">
+                <h1 className="page-title">Onboard Agent</h1>
+                <p className="page-desc">Validate, trace, and index developer-hosted agent manifests inside the workspace catalog.</p>
               </div>
-            </div>
-          </>
-        )}
 
-        {/* VIEW 3: SUPERVISOR CHAT */}
-        {view === 'chat' && (
-          <>
-            <div className="section-header">
-              <h1 className="section-title">Supervisor Chat</h1>
-              <p className="section-desc">State compound tasks or single requirements. Supervisor routes pipelines, checks RBAC roles, and fires compliance monitors.</p>
-            </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '2rem', alignItems: 'start' }}>
+                <div className="ingest-drop-zone">
+                  <div style={{ width: '100%', textAlign: 'left' }}>
+                    <label style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.5rem' }}>Agent Manifest Spec (JSON)</label>
+                    <textarea 
+                      rows="14" 
+                      className="form-control"
+                      style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', resize: 'vertical', width: '100%', backgroundColor: 'var(--bg-secondary)' }}
+                      value={manifestText}
+                      onChange={e => setManifestText(e.target.value)}
+                    />
+                  </div>
+                  <button onClick={handleOnboard} className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>
+                    <UploadIcon />
+                    <span>Upload & Register</span>
+                  </button>
+                </div>
 
-            <div className="chat-window">
-              <div className="chat-bubble-container">
-                <div style={{ flexGrow: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem', paddingRight: '0.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <h3 style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-secondary)' }}>Verification Stream Logs</h3>
+                  <div className="terminal-console" style={{ height: '370px' }}>
+                    {onboardLogs.length === 0 ? (
+                      <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Logs will display here...</div>
+                    ) : (
+                      onboardLogs.map((log, idx) => (
+                        <div key={idx} className={`terminal-line ${log.type}`}>
+                          <span style={{ color: 'var(--text-muted)', marginRight: '0.5rem' }}>[{log.time}]</span>
+                          <span>{log.text}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* VIEW 3: SUPERVISOR CHAT */}
+          {view === 'chat' && (
+            <>
+              <div className="section-header">
+                <h1 className="page-title">Supervisor Chat</h1>
+                <p className="page-desc">Decompose prompts, resolve schemas, and chain multi-agent executions through compliance firewalls.</p>
+              </div>
+
+              <div className="chat-centered-container">
+                <div className="chat-messages-scroll">
                   {chatMessages.map((msg, idx) => (
                     <div 
                       key={idx} 
@@ -520,13 +548,18 @@ function App() {
                         maxWidth: '85%',
                         cursor: msg.routing ? 'pointer' : 'default'
                       }}
-                      onClick={() => msg.routing && setSelectedRoutingMetadata(msg.routing)}
+                      onClick={() => {
+                        if (msg.routing) {
+                          setSelectedRoutingMetadata(msg.routing);
+                          setInspectorOpen(true);
+                        }
+                      }}
                     >
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
                         {msg.sender === 'user' ? 'shubham' : 'Supervisor'} • {msg.time}
                       </div>
                       
-                      <p style={{ fontSize: '0.9rem', lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>{msg.text}</p>
+                      <p style={{ fontSize: '0.875rem', lineHeight: '1.45', whiteSpace: 'pre-wrap' }}>{msg.text}</p>
                       
                       {msg.piiSanitized && (
                         <div style={{ 
@@ -536,8 +569,8 @@ function App() {
                           gap: '0.3rem', 
                           fontSize: '0.7rem', 
                           color: 'var(--warning)', 
-                          backgroundColor: 'rgba(245, 158, 11, 0.05)', 
-                          border: '1px solid rgba(245, 158, 11, 0.2)',
+                          backgroundColor: 'rgba(125, 87, 0, 0.05)', 
+                          border: '1px solid rgba(125, 87, 0, 0.15)',
                           padding: '0.25rem 0.5rem', 
                           borderRadius: '4px',
                           fontWeight: '500'
@@ -549,23 +582,23 @@ function App() {
                       {msg.routing && (
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.4rem' }}>
                           <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 'bold' }}>
-                            [Inspect Routing Logs]
+                            [Inspect Routing Log]
                           </span>
                         </div>
                       )}
                     </div>
                   ))}
                   {chatLoading && (
-                    <div style={{ alignSelf: 'flex-start', color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic' }}>
-                      Supervisor routing intent...
+                    <div style={{ alignSelf: 'flex-start', color: 'var(--text-muted)', fontSize: '0.8rem', fontStyle: 'italic', paddingLeft: '0.5rem' }}>
+                      Supervisor routing payload...
                     </div>
                   )}
                 </div>
 
-                <form onSubmit={handleChatSend} className="chat-input-row">
+                <form onSubmit={handleChatSend} className="chat-input-bar">
                   <input 
                     type="text" 
-                    placeholder="Describe requirement (e.g. 'extract document text and then translate it')"
+                    placeholder="Describe requirement (e.g. 'summarize document and then translate it')"
                     value={chatInput}
                     onChange={e => setChatInput(e.target.value)}
                   />
@@ -573,14 +606,17 @@ function App() {
                 </form>
               </div>
 
-              {/* Execution Inspector Side Panel */}
-              <div className="chat-bubble-container" style={{ overflowY: 'auto' }}>
-                <h3 style={{ fontSize: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', fontWeight: '600' }}>Execution Inspector</h3>
+              {/* Sliding Overlay Inspector Drawer */}
+              <div className={`inspector-drawer ${inspectorOpen ? 'open' : ''}`}>
+                <div className="drawer-header">
+                  <h3 style={{ fontSize: '0.95rem', fontWeight: '600' }}>Execution Inspector</h3>
+                  <button className="close-btn" onClick={() => setInspectorOpen(false)}>×</button>
+                </div>
                 
                 {selectedRoutingMetadata ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', fontSize: '0.825rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>Status:</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>Status:</span>
                       <span className={`status-pill ${selectedRoutingMetadata.status === 'routed' ? 'status-active' : 'status-unhealthy'}`}>
                         <span className="status-dot"></span>
                         {selectedRoutingMetadata.status}
@@ -588,7 +624,7 @@ function App() {
                     </div>
                     <div>
                       <span style={{ color: 'var(--text-secondary)' }}>Routed Agent:</span>
-                      <div style={{ fontWeight: '600', marginTop: '0.2rem' }}>{selectedRoutingMetadata.agent || 'None (No Match)'}</div>
+                      <div style={{ fontWeight: '600', marginTop: '0.2rem', color: 'var(--text-primary)' }}>{selectedRoutingMetadata.agent || 'None (No Match)'}</div>
                     </div>
                     <div>
                       <span style={{ color: 'var(--text-secondary)' }}>Sequential Orchestration Plan:</span>
@@ -601,7 +637,7 @@ function App() {
                               backgroundColor: 'var(--bg-primary)', 
                               borderRadius: '4px',
                               borderLeft: '2px solid var(--text-muted)',
-                              lineHeight: '1.3',
+                              lineHeight: '1.35',
                               color: 'var(--text-secondary)'
                             }}>
                               {step}
@@ -614,14 +650,14 @@ function App() {
                     </div>
                     <div>
                       <span style={{ color: 'var(--text-secondary)' }}>Execution Latency:</span>
-                      <div style={{ fontWeight: '500', marginTop: '0.1rem' }}>{selectedRoutingMetadata.latency} ms</div>
+                      <div style={{ fontWeight: '600', marginTop: '0.1rem', color: 'var(--text-primary)' }}>{selectedRoutingMetadata.latency} ms</div>
                     </div>
                     <div>
                       <span style={{ color: 'var(--text-secondary)' }}>Mapped Arguments Payload:</span>
                       <pre style={{ 
                         marginTop: '0.4rem', 
-                        fontFamily: 'monospace', 
-                        fontSize: '0.75rem', 
+                        fontFamily: 'var(--font-mono)', 
+                        fontSize: '0.725rem', 
                         backgroundColor: 'var(--bg-primary)', 
                         padding: '0.6rem', 
                         borderRadius: 'var(--radius-md)', 
@@ -634,94 +670,109 @@ function App() {
                     </div>
                   </div>
                 ) : (
-                  <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem', textAlign: 'center', marginTop: '4rem' }}>
+                  <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.8rem', textAlign: 'center', marginTop: '4rem' }}>
                     Select a routed message response to inspect execution payload.
                   </div>
                 )}
               </div>
-            </div>
-          </>
-        )}
+            </>
+          )}
 
-        {/* VIEW 4: DEMAND & GAPS */}
-        {view === 'analytics' && (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-              <div>
-                <h1 className="section-title">Demand Backlog</h1>
-                <p className="section-desc">Continuous feedback mapping: clustered innovation backlog topics built from unaddressed client registry requests.</p>
+          {/* VIEW 4: DEMAND & GAPS */}
+          {view === 'analytics' && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                <div>
+                  <h1 className="page-title">Demand Backlog</h1>
+                  <p className="page-desc">Data-driven priority queue grouping unaddressed client registry requests into developer feature gaps.</p>
+                </div>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={triggerClustering}
+                  disabled={clusteringLoading}
+                >
+                  {clusteringLoading ? 'Clustering...' : 'Run Gap Clustering'}
+                </button>
               </div>
-              <button 
-                className="btn btn-secondary" 
-                onClick={triggerClustering}
-                disabled={clusteringLoading}
-              >
-                {clusteringLoading ? 'Clustering...' : 'Run Gap Clustering'}
-              </button>
-            </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 0.75fr', gap: '2rem', alignItems: 'start' }}>
-              
-              {/* Leaderboard Table (matches CodeLens Ingested structure) */}
-              <div>
-                <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Backlog Gap Leaderboard</h3>
-                <table className="premium-table">
-                  <thead>
-                    <tr>
-                      <th>Capability Theme</th>
-                      <th>Summary Details</th>
-                      <th style={{ textAlign: 'center' }}>Weekly Search Hits</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {gaps.length === 0 ? (
+              {/* 3-Column Top KPI Summary Dashboard */}
+              <div className="kpi-grid">
+                <div className="kpi-card">
+                  <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: '600', letterSpacing: '0.05em' }}>Clustered Gaps</div>
+                  <div className="kpi-value">{gaps.length}</div>
+                </div>
+                <div className="kpi-card">
+                  <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: '600', letterSpacing: '0.05em' }}>Weekly Demand (Hits)</div>
+                  <div className="kpi-value">{totalUnaddressedHits}</div>
+                </div>
+                <div className="kpi-card">
+                  <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: '600', letterSpacing: '0.05em' }}>Avg System Latency</div>
+                  <div className="kpi-value">{avgLatency} ms</div>
+                </div>
+              </div>
+
+              {/* Full-width Backlog Leaderboard Table */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 0.75fr', gap: '2rem', alignItems: 'start' }}>
+                <div>
+                  <h3 style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Backlog Gap Leaderboard</h3>
+                  <table className="premium-table">
+                    <thead>
                       <tr>
-                        <td colSpan="3" style={{ textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', padding: '2rem' }}>
-                          No capability gaps logged yet.
-                        </td>
+                        <th>Capability Theme</th>
+                        <th>Summary Details</th>
+                        <th style={{ textAlign: 'center' }}>Weekly Search Hits</th>
                       </tr>
-                    ) : (
-                      gaps.map(g => (
-                        <tr key={g.id}>
-                          <td style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{g.title}</td>
-                          <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{g.summary}</td>
-                          <td style={{ textAlign: 'center', fontWeight: '600', color: 'var(--accent-secondary)' }}>{g.countFrequency}</td>
+                    </thead>
+                    <tbody>
+                      {gaps.length === 0 ? (
+                        <tr>
+                          <td colSpan="3" style={{ textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', padding: '2rem' }}>
+                            No capability gaps logged yet.
+                          </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        gaps.map(g => (
+                          <tr key={g.id}>
+                            <td style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{g.title}</td>
+                            <td style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{g.summary}</td>
+                            <td style={{ textAlign: 'center', fontWeight: '600', color: 'var(--accent-secondary)' }}>{g.countFrequency}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Telemetry log list panel */}
+                <div className="premium-card" style={{ cursor: 'default', height: 'auto' }}>
+                  <h3 style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Active Agent Performance</h3>
+                  {telemetry.length === 0 ? (
+                    <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No active telemetry logs.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                      {telemetry.map((t, idx) => (
+                        <div key={idx} style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+                          <div style={{ fontWeight: '600', marginBottom: '0.35rem', fontSize: '0.8rem', fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                            {t.agentid}
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            <div>Runs: <strong>{t.countruns}</strong></div>
+                            <div>Success: <strong>{Math.round(t.successrate)}%</strong></div>
+                            <div>Latency: <strong>{Math.round(t.avglatency)} ms</strong></div>
+                            <div>Costs: <strong>${parseFloat(t.totalcost).toFixed(4)}</strong></div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Telemetry log list panel */}
-              <div className="premium-card" style={{ cursor: 'default' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)' }}>Execution Telemetry</h3>
-                {telemetry.length === 0 ? (
-                  <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No execution logs recorded.</p>
-                ) : (
-                  <div style={{ display: 'flex', flexString: 'column', flexDirection: 'column', gap: '1rem' }}>
-                    {telemetry.map((t, idx) => (
-                      <div key={idx} style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.85rem' }}>
-                        <div style={{ fontWeight: '600', marginBottom: '0.4rem', fontSize: '0.85rem', fontFamily: 'monospace', color: 'var(--text-primary)' }}>
-                          {t.agentid}
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                          <div>Runs: <strong>{t.countruns}</strong></div>
-                          <div>Success: <strong>{Math.round(t.successrate)}%</strong></div>
-                          <div>Latency: <strong>{Math.round(t.avglatency)} ms</strong></div>
-                          <div>Costs: <strong>${parseFloat(t.totalcost).toFixed(4)}</strong></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+            </>
+          )}
 
-            </div>
-          </>
-        )}
-
-      </main>
+        </div>
+      </div>
     </div>
   );
 }
