@@ -278,7 +278,7 @@ function App() {
       {/* Structural Persistent Left Sidebar */}
       <aside className="sidebar">
         <div className="brand-wrapper" style={{ marginBottom: '2rem' }}>
-          <div className="logo-icon">S</div>
+          <img src="/logo.jpg" alt="SymphonyAI Logo" style={{ width: '28px', height: '28px', borderRadius: 'var(--radius-md)', objectFit: 'cover' }} />
           <span className="brand-title premium-gradient-text">SymphonyAI</span>
         </div>
 
