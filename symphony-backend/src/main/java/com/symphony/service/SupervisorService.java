@@ -56,7 +56,7 @@ public class SupervisorService {
         if (candidates.isEmpty() || candidates.get(0).getSimilarity() < 0.35) {
             log.info("No matching agent found (similarity below threshold).");
             telemetryService.logFailedQuery(workspaceId, query);
-            telemetryService.logRouting(workspaceId, userId, null, query, "no_match", 0, 404);
+            telemetryService.logRouting(workspaceId, userId, null, query, "no_match", 0, 404, userRole);
 
             return SupervisorResponseDto.builder()
                     .textResponse("No matching agents were found in the enterprise catalog to handle your request. This requirement has been logged in our Innovation Backlog.")
@@ -230,7 +230,7 @@ public class SupervisorService {
                 }
 
                 if (!dagSuccess) {
-                    telemetryService.logRouting(workspaceId, userId, lastExecutedAgentId, query, "chained", (int) totalExecutionLatency, lastHttpStatusCode);
+                    telemetryService.logRouting(workspaceId, userId, lastExecutedAgentId, query, "chained", (int) totalExecutionLatency, lastHttpStatusCode, userRole);
                     if (lastHttpStatusCode == 403) {
                         return createAccessDeniedResponse(
                                 dag.nodes.stream().filter(n -> "FAILED".equals(n.status)).map(n -> n.agentName).findFirst().orElse("Unknown"),
@@ -253,7 +253,7 @@ public class SupervisorService {
                 String summary = String.format("Dynamic DAG pipeline completed successfully. Output resolved through %d agents: %s\n[Final Output]: %s",
                         executedCount, flowName, lastOutput);
 
-                telemetryService.logRouting(workspaceId, userId, lastExecutedAgentId, query, "chained", (int) totalExecutionLatency, 200);
+                telemetryService.logRouting(workspaceId, userId, lastExecutedAgentId, query, "chained", (int) totalExecutionLatency, 200, userRole);
 
                 return SupervisorResponseDto.builder()
                         .textResponse(summary)
@@ -276,7 +276,7 @@ public class SupervisorService {
         // Validate RBAC
         if (isRbacBlocked(targetAgent, userRole)) {
             steps.add(String.format("Security Halt: Execution blocked for '%s'. Role '%s' is unauthorized.", targetAgent.getName(), userRole));
-            telemetryService.logRouting(workspaceId, userId, targetAgent.getId(), query, "routed", 0, 403);
+            telemetryService.logRouting(workspaceId, userId, targetAgent.getId(), query, "routed", 0, 403, userRole);
             return createAccessDeniedResponse(targetAgent.getName(), userRole, steps);
         }
 
@@ -312,7 +312,7 @@ public class SupervisorService {
         }
 
         int totalLatency = (int) (System.currentTimeMillis() - startTime);
-        telemetryService.logRouting(workspaceId, userId, targetAgent.getId(), query, "routed", totalLatency, httpStatus);
+        telemetryService.logRouting(workspaceId, userId, targetAgent.getId(), query, "routed", totalLatency, httpStatus, userRole);
 
         return SupervisorResponseDto.builder()
                 .textResponse(resultText)

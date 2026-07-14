@@ -76,6 +76,8 @@ function App() {
   const [gaps, setGaps] = useState([]);
   const [telemetry, setTelemetry] = useState([]);
   const [clusteringLoading, setClusteringLoading] = useState(false);
+  const [billingStats, setBillingStats] = useState([]);
+  const [billingAudit, setBillingAudit] = useState([]);
 
   // Sync theme
   useEffect(() => {
@@ -129,7 +131,7 @@ function App() {
     }
   };
 
-  // Fetch gaps and telemetry
+  // Fetch gaps, telemetry and billing stats
   const fetchAnalytics = async () => {
     try {
       const headers = {};
@@ -140,8 +142,14 @@ function App() {
 
       const resTel = await fetch(`${API_BASE}/admin/telemetry`, { headers });
       if (resTel.ok) setTelemetry(await resTel.json());
+
+      const resBillingStats = await fetch(`${API_BASE}/admin/billing/stats`, { headers });
+      if (resBillingStats.ok) setBillingStats(await resBillingStats.json());
+
+      const resBillingAudit = await fetch(`${API_BASE}/admin/billing/audit`, { headers });
+      if (resBillingAudit.ok) setBillingAudit(await resBillingAudit.json());
     } catch (err) {
-      console.error("Failed loading analytics", err);
+      console.error("Failed loading analytics and billing data", err);
     }
   };
 
@@ -149,7 +157,7 @@ function App() {
     if (view === 'marketplace') {
       fetchAgents();
       setSelectedAgent(null);
-    } else if (view === 'analytics') {
+    } else if (view === 'analytics' || view === 'billing') {
       fetchAnalytics();
     }
   }, [view, token]);
@@ -307,6 +315,12 @@ function App() {
       ? Math.round(telemetry.reduce((acc, t) => acc + t.avglatency, 0) / telemetry.length) 
       : 0;
 
+  const totalBillingCost = billingAudit.reduce((acc, b) => acc + (b.tokenCost || 0), 0);
+  const totalBillingCostUsd = parseFloat(totalBillingCost).toFixed(5);
+  const avgBillingCostUsd = billingAudit.length > 0 
+      ? parseFloat(totalBillingCost / billingAudit.length).toFixed(6) 
+      : "0.000000";
+
   return (
     <div className="app-container">
       {/* Structural Persistent Left Sidebar */}
@@ -340,6 +354,10 @@ function App() {
             <li className={`nav-item ${view === 'analytics' ? 'active' : ''}`} onClick={() => setView('analytics')}>
               <ChartIcon />
               <span>Demand & Gaps</span>
+            </li>
+            <li className={`nav-item ${view === 'billing' ? 'active' : ''}`} onClick={() => setView('billing')}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+              <span>Billing & Cost</span>
             </li>
           </ul>
         </nav>
@@ -804,6 +822,153 @@ function App() {
 
             </>
           )}
+
+          {/* VIEW 5: BILLING & TOKEN COST ALLOCATION */}
+          {view === 'billing' && (
+            <>
+              <div style={{ marginBottom: '2rem' }}>
+                <h1 className="page-title premium-gradient-text">Token Billing & Allocation</h1>
+                <p className="page-desc">Corporate cost breakdown tracing LLM token expenses and resource consumption back to requesting SSO department profiles.</p>
+              </div>
+
+              {/* KPI Cards */}
+              <div className="kpi-grid" style={{ marginBottom: '2.5rem' }}>
+                <div className="kpi-card">
+                  <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: '600', letterSpacing: '0.05em' }}>Total Token Expenses</div>
+                  <div className="kpi-value" style={{ color: 'var(--success)' }}>${totalBillingCostUsd}</div>
+                </div>
+                <div className="kpi-card">
+                  <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: '600', letterSpacing: '0.05em' }}>Total Queries Routed</div>
+                  <div className="kpi-value">{billingAudit.length}</div>
+                </div>
+                <div className="kpi-card">
+                  <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: '600', letterSpacing: '0.05em' }}>Avg Cost per Query</div>
+                  <div className="kpi-value" style={{ color: 'var(--accent)' }}>${avgBillingCostUsd}</div>
+                </div>
+              </div>
+
+              {/* Grid allocation charts & audit list */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '2.5rem', alignItems: 'start' }}>
+                
+                {/* Left side: Department breakdown list with horizontal progress bars */}
+                <div className="premium-card" style={{ padding: '2rem', cursor: 'default' }}>
+                  <h3 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '1.25rem' }}>Department Cost Distribution</h3>
+                  {billingStats.length === 0 ? (
+                    <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No billing data generated yet.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                      {billingStats.map((stat, idx) => {
+                        const totalCost = parseFloat(stat.totalcost || 0);
+                        const percentage = totalBillingCost > 0 ? (totalCost / totalBillingCost) * 100 : 0;
+                        let deptName = stat.department;
+                        if (deptName === 'Employee') deptName = 'Standard Employee';
+                        if (deptName === 'HR') deptName = 'HR Specialist';
+                        if (deptName === 'Admin') deptName = 'Administrator';
+
+                        return (
+                          <div key={idx}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.85rem' }}>
+                              <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{deptName}</span>
+                              <span style={{ color: 'var(--text-secondary)', fontWeight: '600' }}>
+                                ${totalCost.toFixed(5)} ({Math.round(percentage)}%)
+                              </span>
+                            </div>
+                            {/* Horizontal Progress Bar */}
+                            <div style={{ height: '8px', borderRadius: '4px', backgroundColor: 'var(--border-color)', overflow: 'hidden' }}>
+                              <div style={{ 
+                                height: '100%', 
+                                width: `${percentage}%`, 
+                                borderRadius: '4px',
+                                background: idx === 0 
+                                  ? 'linear-gradient(90deg, var(--accent) 0%, var(--accent-secondary) 100%)' 
+                                  : idx === 1 
+                                  ? 'linear-gradient(90deg, var(--success) 0%, #10b981 100%)' 
+                                  : 'linear-gradient(90deg, var(--error) 0%, #ff8a80 100%)'
+                              }}></div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '1rem', marginTop: '0.35rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                              <span>Queries: <strong>{stat.countruns}</strong></span>
+                              <span>Avg Latency: <strong>{Math.round(stat.avglatency)} ms</strong></span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right side: Detailed audit logs table */}
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '0.75rem' }}>Billing Audit Logs</h3>
+                  <div style={{ maxHeight: '500px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-secondary)' }}>
+                    <table className="premium-table" style={{ margin: 0, border: 'none' }}>
+                      <thead style={{ position: 'sticky', top: 0, backgroundColor: 'var(--bg-secondary)', zIndex: 1, boxShadow: '0 1px 0 var(--border-color)' }}>
+                        <tr>
+                          <th>Query / Intent</th>
+                          <th>Routing</th>
+                          <th>Dept Role</th>
+                          <th style={{ textAlign: 'right' }}>Cost</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {billingAudit.length === 0 ? (
+                          <tr>
+                            <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', padding: '2rem' }}>
+                              No query logs recorded yet. Run supervisor prompts to generate usage telemetry.
+                            </td>
+                          </tr>
+                        ) : (
+                          [...billingAudit].reverse().map(log => {
+                            let deptName = log.department;
+                            if (deptName === 'Employee') deptName = 'Employee';
+                            if (deptName === 'HR') deptName = 'HR Spec.';
+                            if (deptName === 'Admin') deptName = 'Admin';
+
+                            let routingLabel = log.routingDecision;
+                            if (routingLabel === 'chained') routingLabel = 'Chained DAG';
+                            if (routingLabel === 'routed') routingLabel = 'Single Agent';
+                            if (routingLabel === 'no_match') routingLabel = 'No Match';
+
+                            return (
+                              <tr key={log.id} style={{ fontSize: '0.8rem' }}>
+                                <td style={{ maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: '500' }} title={log.queryText}>
+                                  {log.queryText}
+                                </td>
+                                <td>
+                                  <span style={{ 
+                                    padding: '0.2rem 0.5rem', 
+                                    borderRadius: 'var(--radius-sm)', 
+                                    fontSize: '0.7rem', 
+                                    fontWeight: '600',
+                                    backgroundColor: log.routingDecision === 'chained' 
+                                      ? 'rgba(130, 80, 223, 0.15)' 
+                                      : log.routingDecision === 'routed' 
+                                      ? 'rgba(0, 168, 204, 0.15)' 
+                                      : 'rgba(255, 107, 107, 0.15)',
+                                    color: log.routingDecision === 'chained' 
+                                      ? 'var(--accent)' 
+                                      : log.routingDecision === 'routed' 
+                                      ? 'var(--accent-secondary)' 
+                                      : 'var(--error)'
+                                  }}>
+                                    {routingLabel}
+                                  </span>
+                                </td>
+                                <td style={{ color: 'var(--text-secondary)' }}>{deptName}</td>
+                                <td style={{ textAlign: 'right', fontWeight: '600', color: 'var(--text-primary)' }}>
+                                  ${parseFloat(log.tokenCost).toFixed(5)}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+            </>
 
         </div>
       </div>

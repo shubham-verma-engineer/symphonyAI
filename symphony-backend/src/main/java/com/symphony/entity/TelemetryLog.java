@@ -43,6 +43,9 @@ public class TelemetryLog {
     @Column(name = "http_status_code")
     private Integer httpStatusCode;
 
+    @Column(name = "department")
+    private String department;
+
     @Column(name = "executed_at", insertable = false, updatable = false)
     private OffsetDateTime executedAt;
 }

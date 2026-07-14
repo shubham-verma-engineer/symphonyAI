@@ -42,6 +42,22 @@ public class AdminAnalyticsController {
         return ResponseEntity.ok(stats);
     }
 
+    @GetMapping("/billing/stats")
+    public ResponseEntity<List<Map<String, Object>>> getBillingStats(
+            @RequestHeader(value = "X-Workspace-Id", required = false) String wsHeader) {
+        UUID workspaceId = resolveWorkspace(wsHeader);
+        List<Map<String, Object>> billingStats = telemetryService.getDepartmentBillingStats(workspaceId);
+        return ResponseEntity.ok(billingStats);
+    }
+
+    @GetMapping("/billing/audit")
+    public ResponseEntity<List<com.symphony.entity.TelemetryLog>> getBillingAudit(
+            @RequestHeader(value = "X-Workspace-Id", required = false) String wsHeader) {
+        UUID workspaceId = resolveWorkspace(wsHeader);
+        List<com.symphony.entity.TelemetryLog> logs = telemetryService.getRawTelemetryLogs(workspaceId);
+        return ResponseEntity.ok(logs);
+    }
+
     @PostMapping("/gaps/trigger-cluster")
     public ResponseEntity<Void> triggerClustering(
             @RequestHeader(value = "X-Workspace-Id", required = false) String wsHeader) {

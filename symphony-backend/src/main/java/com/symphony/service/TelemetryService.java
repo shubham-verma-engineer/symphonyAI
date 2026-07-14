@@ -23,9 +23,16 @@ public class TelemetryService {
     private final FailedQueryRepository failedQueryRepository;
 
     @Transactional
-    public TelemetryLog logRouting(UUID workspaceId, UUID userId, UUID agentId, String query, String decision, int latencyMs, int statusCode) {
-        log.info("Logging telemetry: workspace='{}', agent='{}', decision='{}', status={}", workspaceId, agentId, decision, statusCode);
+    public TelemetryLog logRouting(UUID workspaceId, UUID userId, UUID agentId, String query, String decision, int latencyMs, int statusCode, String userRole) {
+        log.info("Logging telemetry: workspace='{}', agent='{}', decision='{}', status={}, role='{}'", workspaceId, agentId, decision, statusCode, userRole);
         
+        BigDecimal cost = BigDecimal.valueOf(0.00015);
+        if ("chained".equalsIgnoreCase(decision)) {
+            cost = BigDecimal.valueOf(0.00045);
+        } else if ("no_match".equalsIgnoreCase(decision)) {
+            cost = BigDecimal.valueOf(0.00005);
+        }
+
         TelemetryLog logEntity = TelemetryLog.builder()
                 .workspaceId(workspaceId)
                 .userId(userId)
@@ -33,8 +40,9 @@ public class TelemetryService {
                 .queryText(query.length() > 500 ? query.substring(0, 500) : query)
                 .routingDecision(decision)
                 .executionLatencyMs(latencyMs)
-                .tokenCost(BigDecimal.valueOf(0.0001)) // Mock trace token cost per LLM routing check
+                .tokenCost(cost)
                 .httpStatusCode(statusCode)
+                .department(userRole != null ? userRole : "Employee")
                 .build();
         
         return telemetryLogRepository.save(logEntity);
@@ -55,5 +63,13 @@ public class TelemetryService {
 
     public List<Map<String, Object>> getStats(UUID workspaceId) {
         return telemetryLogRepository.getAgentAggregatedStats(workspaceId);
+    }
+
+    public List<Map<String, Object>> getDepartmentBillingStats(UUID workspaceId) {
+        return telemetryLogRepository.getDepartmentBillingStats(workspaceId);
+    }
+
+    public List<TelemetryLog> getRawTelemetryLogs(UUID workspaceId) {
+        return telemetryLogRepository.findAllByWorkspaceId(workspaceId);
     }
 }

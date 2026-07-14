@@ -22,4 +22,12 @@ public interface TelemetryLogRepository extends JpaRepository<TelemetryLog, UUID
                    "WHERE workspace_id = :workspaceId AND agent_id IS NOT NULL " +
                    "GROUP BY agent_id", nativeQuery = true)
     List<Map<String, Object>> getAgentAggregatedStats(@Param("workspaceId") UUID workspaceId);
+
+    @Query(value = "SELECT COALESCE(department, 'Employee') AS department, COUNT(*) AS countRuns, " +
+                   "SUM(token_cost) AS totalCost, " +
+                   "AVG(execution_latency_ms) AS avgLatency " +
+                   "FROM telemetry_logs " +
+                   "WHERE workspace_id = :workspaceId " +
+                   "GROUP BY COALESCE(department, 'Employee')", nativeQuery = true)
+    List<Map<String, Object>> getDepartmentBillingStats(@Param("workspaceId") UUID workspaceId);
 }
