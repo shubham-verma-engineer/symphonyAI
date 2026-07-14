@@ -1,5 +1,6 @@
 package com.symphony.entity;
 
+import com.symphony.config.AesGcmEncryptor;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
@@ -27,6 +28,7 @@ public class TelemetryLog {
     private UUID agentId;
 
     @Column(name = "query_text", nullable = false)
+    @Convert(converter = AesGcmEncryptor.class)
     private String queryText;
 
     @Column(name = "routing_decision", nullable = false)

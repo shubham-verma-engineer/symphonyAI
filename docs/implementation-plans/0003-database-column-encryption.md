@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Plan #** | 0003 |
-| **Status** | Draft |
+| **Status** | Done |
 | **Branch** | `main` |
 | **Author** | Antigravity + Shubham |
 | **Created** | 2026-07-14 |
@@ -28,7 +28,7 @@ The goal is to encrypt sensitive enterprise query texts stored in the PostgreSQL
 
 ## 3. Phases
 
-### Phase 1 — Database Columns Expansion · Status: Pending
+### Phase 1 — Database Columns Expansion · Status: Done
 - **Does**: Apply migration to widen target query text columns to `TEXT`.
 - **Verify**: Inspect updated schema inside postgres test database.
 - **Changed files**:
@@ -37,7 +37,7 @@ The goal is to encrypt sensitive enterprise query texts stored in the PostgreSQL
   |---|---|
   | `symphony-backend/src/main/resources/db/migration/V4__increase_query_text_columns_length.sql` | Migration widening database columns to TEXT (new) |
 
-### Phase 2 — Cryptographic Attribute Converter · Status: Pending
+### Phase 2 — Cryptographic Attribute Converter · Status: Done
 - **Does**: Implement `AesGcmEncryptor` and annotate entity properties.
 - **Verify**: Confirm compilation.
 - **Changed files**:
@@ -75,4 +75,4 @@ The goal is to encrypt sensitive enterprise query texts stored in the PostgreSQL
 
 ## 9. Commits / PR
 
-- Commit: TBD
+- Commit: `feat(db): implement database column-level GCM encryption via JPA converter`
