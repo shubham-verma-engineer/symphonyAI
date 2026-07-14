@@ -52,6 +52,9 @@ public class Agent {
     @Column(name = "authorized_roles")
     private String authorizedRoles;
 
+    @Column(name = "credential_vault_uri")
+    private String credentialVaultUri;
+
     @Version
     @Column(name = "concurrency_version", nullable = false)
     private Integer concurrencyVersion;

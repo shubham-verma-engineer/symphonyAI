@@ -6,8 +6,11 @@ import com.symphony.dto.AgentParameterDto;
 import com.symphony.dto.EndpointsDto;
 import com.symphony.dto.SecurityDto;
 import com.symphony.dto.SupervisorResponseDto;
+import com.symphony.entity.Agent;
+import com.symphony.repository.AgentRepository;
 import com.symphony.service.AgentService;
 import com.symphony.service.PiiFirewallService;
+import com.symphony.service.SecretsVaultService;
 import com.symphony.service.SupervisorService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +35,12 @@ public class GovernanceOrchestrationIntegrationTest {
 
     @Autowired
     private SupervisorService supervisorService;
+
+    @Autowired
+    private SecretsVaultService secretsVaultService;
+
+    @Autowired
+    private AgentRepository agentRepository;
 
     @Test
     public void testPiiFirewallMaskingAndDetokenizing() {
@@ -135,5 +144,49 @@ public class GovernanceOrchestrationIntegrationTest {
         assertNotNull(chainResponse.getExecutionSteps());
         assertTrue(chainResponse.getExecutionSteps().size() > 5);
         assertTrue(chainResponse.getExecutionSteps().stream().anyMatch(step -> step.contains("identified composite")));
+    }
+
+    @Test
+    public void testSecretsVaultIntegration() {
+        UUID wsId = DatabaseInitializer.DEFAULT_WORKSPACE_ID;
+        UUID userId = DatabaseInitializer.DEFAULT_USER_ID;
+
+        // Onboard agent with a secretKey
+        AgentManifestDto manifest = AgentManifestDto.builder()
+                .manifestVersion("1.0")
+                .name("secured-agent")
+                .version("1.0.0")
+                .description("A test agent that requires dynamic api authentication token.")
+                .endpoints(EndpointsDto.builder()
+                        .execution("http://localhost:8091/actuator/health")
+                        .health("http://localhost:8091/actuator/health")
+                        .build())
+                .parameters(List.of(AgentParameterDto.builder().name("input").type("string").required(true).build()))
+                .security(SecurityDto.builder()
+                        .requiresRBAC(false)
+                        .secretKey("my-super-secret-passphrase-abc")
+                        .build())
+                .build();
+
+        Agent onboarded = agentService.onboardAgent(manifest, wsId, userId);
+        assertNotNull(onboarded);
+
+        // 1. Verify credential_vault_uri is set in database and plaintext is not leaked
+        assertNotNull(onboarded.getCredentialVaultUri());
+        assertTrue(onboarded.getCredentialVaultUri().startsWith("vault:/"));
+
+        Agent dbAgent = agentRepository.findById(onboarded.getId()).orElse(null);
+        assertNotNull(dbAgent);
+        assertEquals(onboarded.getCredentialVaultUri(), dbAgent.getCredentialVaultUri());
+
+        // 2. Verify vault decrypts the secret correctly
+        String retrievedSecret = secretsVaultService.retrieveSecret(dbAgent.getCredentialVaultUri());
+        assertEquals("my-super-secret-passphrase-abc", retrievedSecret);
+
+        // 3. Verify execution routing works and triggers dispatch
+        SupervisorResponseDto response = supervisorService.routeAndExecute(
+                wsId, userId, "Employee", "execute test agent query"
+        );
+        assertEquals("secured-agent", response.getMatchedAgent());
     }
 }

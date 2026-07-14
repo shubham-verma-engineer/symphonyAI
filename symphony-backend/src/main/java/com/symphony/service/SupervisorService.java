@@ -25,6 +25,7 @@ public class SupervisorService {
 
     private final AgentService agentService;
     private final TelemetryService telemetryService;
+    private final SecretsVaultService secretsVaultService;
 
     @Value("${openai.api-key:mock-key}")
     private String apiKey;
@@ -120,7 +121,7 @@ public class SupervisorService {
             long execStart = System.currentTimeMillis();
             String finalResult;
             try {
-                statusB = dispatchAgentRequest(agentB.getEndpointUrl(), paramsB);
+                statusB = dispatchAgentRequest(agentB.getEndpointUrl(), agentB.getCredentialVaultUri(), paramsB);
                 finalResult = String.format("Chained pipeline completed successfully.\n[Step 1 Res]: %s\n[Step 2 Res (HTTP %d)]: (Processed output from endpoint)", resultA, statusB);
             } catch (IOException e) {
                 finalResult = String.format("Workflow matched '%s' -> '%s' sequence, but '%s' was offline (HTTP 502 Bad Gateway).\n[Step 1 Res]: %s", 
@@ -169,7 +170,7 @@ public class SupervisorService {
 
         long execStart = System.currentTimeMillis();
         try {
-            httpStatus = dispatchAgentRequest(targetAgent.getEndpointUrl(), params);
+            httpStatus = dispatchAgentRequest(targetAgent.getEndpointUrl(), targetAgent.getCredentialVaultUri(), params);
             latency = (int) (System.currentTimeMillis() - execStart);
             steps.add(String.format("Target endpoint execution responded with HTTP %d (Latency: %d ms)", httpStatus, latency));
             
@@ -278,15 +279,27 @@ public class SupervisorService {
         return new HashMap<>();
     }
 
-    private int dispatchAgentRequest(String endpointUrl, Map<String, Object> params) throws IOException {
+    private int dispatchAgentRequest(String endpointUrl, String credentialVaultUri, Map<String, Object> params) throws IOException {
+        String token = null;
+        if (credentialVaultUri != null) {
+            token = secretsVaultService.retrieveSecret(credentialVaultUri);
+        }
+
         RequestBody body = RequestBody.create(
                 mapper.writeValueAsBytes(params),
                 MediaType.parse("application/json")
         );
-        Request request = new Request.Builder()
+
+        Request.Builder requestBuilder = new Request.Builder()
                 .url(endpointUrl)
-                .post(body)
-                .build();
+                .post(body);
+
+        if (token != null) {
+            requestBuilder.addHeader("Authorization", "Bearer " + token);
+        }
+
+        Request request = requestBuilder.build();
+
         try (Response response = httpClient.newCall(request).execute()) {
             return response.code();
         }

@@ -29,6 +29,7 @@ public class AgentService {
     private final AgentRepository agentRepository;
     private final AgentParameterRepository parameterRepository;
     private final OpenAiEmbeddingClient embeddingClient;
+    private final SecretsVaultService secretsVaultService;
 
     private final OkHttpClient httpClient = new OkHttpClient.Builder()
             .connectTimeout(Duration.ofSeconds(3))
@@ -55,10 +56,20 @@ public class AgentService {
         agentRepository.findByWorkspaceIdAndName(workspaceId, manifest.getName())
                 .ifPresent(existing -> {
                     log.info("Removing existing agent registry entry for '{}' (ID: {})", existing.getName(), existing.getId());
+                    if (existing.getCredentialVaultUri() != null) {
+                        secretsVaultService.deleteSecret(existing.getCredentialVaultUri());
+                    }
                     parameterRepository.deleteAllByAgentId(existing.getId());
                     agentRepository.delete(existing);
                     agentRepository.flush();
                 });
+
+        String credentialVaultUri = null;
+        if (manifest.getSecurity() != null && manifest.getSecurity().getSecretKey() != null 
+                && !manifest.getSecurity().getSecretKey().trim().isEmpty()) {
+            String secretPath = "symphony/agents/" + UUID.randomUUID() + "/token";
+            credentialVaultUri = secretsVaultService.storeSecret(secretPath, manifest.getSecurity().getSecretKey());
+        }
 
         // 4. Save metadata properties
         Agent agent = Agent.builder()
@@ -73,6 +84,7 @@ public class AgentService {
                 .requiresRbac(manifest.getSecurity() != null && manifest.getSecurity().getRequiresRBAC())
                 .authorizedRoles(manifest.getSecurity() != null && manifest.getSecurity().getAuthorizedRoles() != null 
                         ? String.join(",", manifest.getSecurity().getAuthorizedRoles()) : null)
+                .credentialVaultUri(credentialVaultUri)
                 .build();
 
         Agent savedAgent = agentRepository.save(agent);
@@ -144,6 +156,7 @@ public class AgentService {
                     .requiresRbac(agent.getRequiresRbac())
                     .authorizedRoles(agent.getAuthorizedRoles() != null 
                             ? java.util.Arrays.asList(agent.getAuthorizedRoles().split(",")) : java.util.Collections.emptyList())
+                    .credentialVaultUri(agent.getCredentialVaultUri())
                     .build());
         }
 
@@ -175,6 +188,7 @@ public class AgentService {
                             .requiresRbac(a.getRequiresRbac())
                             .authorizedRoles(a.getAuthorizedRoles() != null 
                                     ? java.util.Arrays.asList(a.getAuthorizedRoles().split(",")) : java.util.Collections.emptyList())
+                            .credentialVaultUri(a.getCredentialVaultUri())
                             .build();
                 })
                 .collect(Collectors.toList());

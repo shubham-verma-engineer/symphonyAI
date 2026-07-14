@@ -20,4 +20,5 @@ public class AgentSearchMatchDto {
     private List<AgentParameterDto> parameters;
     private Boolean requiresRbac;
     private List<String> authorizedRoles;
+    private String credentialVaultUri;
 }

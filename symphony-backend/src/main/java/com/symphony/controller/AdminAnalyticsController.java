@@ -28,7 +28,7 @@ public class AdminAnalyticsController {
     public ResponseEntity<List<InnovationGap>> getGaps(
             @RequestHeader(value = "X-Workspace-Id", required = false) String wsHeader) {
         
-        UUID workspaceId = wsHeader != null ? UUID.fromString(wsHeader) : DatabaseInitializer.DEFAULT_WORKSPACE_ID;
+        UUID workspaceId = resolveWorkspace(wsHeader);
         List<InnovationGap> gaps = gapRepository.findAllByWorkspaceIdOrderByCountFrequencyDesc(workspaceId);
         return ResponseEntity.ok(gaps);
     }
@@ -37,7 +37,7 @@ public class AdminAnalyticsController {
     public ResponseEntity<List<Map<String, Object>>> getTelemetry(
             @RequestHeader(value = "X-Workspace-Id", required = false) String wsHeader) {
         
-        UUID workspaceId = wsHeader != null ? UUID.fromString(wsHeader) : DatabaseInitializer.DEFAULT_WORKSPACE_ID;
+        UUID workspaceId = resolveWorkspace(wsHeader);
         List<Map<String, Object>> stats = telemetryService.getStats(workspaceId);
         return ResponseEntity.ok(stats);
     }
@@ -46,8 +46,22 @@ public class AdminAnalyticsController {
     public ResponseEntity<Void> triggerClustering(
             @RequestHeader(value = "X-Workspace-Id", required = false) String wsHeader) {
         
-        UUID workspaceId = wsHeader != null ? UUID.fromString(wsHeader) : DatabaseInitializer.DEFAULT_WORKSPACE_ID;
+        UUID workspaceId = resolveWorkspace(wsHeader);
         clusteringService.runClusteringPipeline(workspaceId);
         return ResponseEntity.ok().build();
+    }
+
+    private UUID resolveWorkspace(String wsHeader) {
+        UUID workspaceId = DatabaseInitializer.DEFAULT_WORKSPACE_ID;
+        org.springframework.security.core.Authentication auth = 
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth instanceof com.symphony.config.SymphonyAuthentication symAuth) {
+            workspaceId = symAuth.getWorkspaceId();
+        } else {
+            if (wsHeader != null && !wsHeader.trim().isEmpty()) {
+                workspaceId = UUID.fromString(wsHeader);
+            }
+        }
+        return workspaceId;
     }
 }

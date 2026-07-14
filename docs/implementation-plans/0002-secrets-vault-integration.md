@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Plan #** | 0002 |
-| **Status** | Draft |
+| **Status** | Done |
 | **Branch** | `main` |
 | **Author** | Antigravity + Shubham |
 | **Created** | 2026-07-14 |
@@ -27,7 +27,7 @@ The goal is to secure the storage of credentials/API keys for external developer
 
 ## 3. Phases
 
-### Phase 1 — Database & DTO Extensions · Status: Pending
+### Phase 1 — Database & DTO Extensions · Status: Done
 - **Does**: Add Flyway migration and extend DTOs/Entities to support secret key inputs and vault URI mappings.
 - **Verify**: Compile backend and run migrations.
 - **Changed files**:
@@ -39,7 +39,7 @@ The goal is to secure the storage of credentials/API keys for external developer
   | `symphony-backend/src/main/java/com/symphony/dto/SecurityDto.java` | Add secretKey input field (modified) |
   | `symphony-backend/src/main/java/com/symphony/dto/AgentSearchMatchDto.java` | Add credentialVaultUri mapping property (modified) |
 
-### Phase 2 — Secrets Vault Implementation & Service Hooking · Status: Pending
+### Phase 2 — Secrets Vault Implementation & Service Hooking · Status: Done
 - **Does**: Implement the encrypted SecretsVaultService and integrate onboarding/execution pipelines.
 - **Verify**: Run JUnit tests validating secret storing, retrieval, and request header injection.
 - **Changed files**:
@@ -51,7 +51,7 @@ The goal is to secure the storage of credentials/API keys for external developer
   | `symphony-backend/src/main/java/com/symphony/service/AgentService.java` | Integrate SecretsVaultService to store keys during onboarding (modified) |
   | `symphony-backend/src/main/java/com/symphony/service/SupervisorService.java` | Retrieve key and append Authorization Bearer headers in execution (modified) |
 
-### Phase 3 — UI Key Integration · Status: Pending
+### Phase 3 — UI Key Integration · Status: Done
 - **Does**: Support optional key entry in the onboarding portal UI.
 - **Verify**: Register an agent with a mock key and inspect database to verify the key is represented as a vault URI.
 - **Changed files**:
@@ -86,4 +86,4 @@ The goal is to secure the storage of credentials/API keys for external developer
 
 ## 9. Commits / PR
 
-- Commit: TBD
+- Commit: `feat(vault): implement encrypted secrets vault integration for agent credentials`

@@ -29,6 +29,7 @@ function App() {
   const [view, setView] = useState('marketplace'); // 'marketplace' | 'onboard' | 'chat' | 'analytics'
   const [theme, setTheme] = useState(() => localStorage.getItem('symphony-theme') || 'dark');
   const [userRole, setUserRole] = useState(() => localStorage.getItem('symphony-role') || 'Employee');
+  const [token, setToken] = useState(() => localStorage.getItem('symphony-jwt') || '');
   
   const [agents, setAgents] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -53,7 +54,8 @@ function App() {
     ],
     "security": {
       "requiresRBAC": true,
-      "authorizedRoles": ["Admin", "HR"]
+      "authorizedRoles": ["Admin", "HR"],
+      "secretKey": "mock-secret-agent-key"
     }
   }, null, 2));
 
@@ -80,9 +82,27 @@ function App() {
     localStorage.setItem('symphony-theme', theme);
   }, [theme]);
 
-  // Sync userRole
+  // Sync userRole and fetch matching JWT session token
   useEffect(() => {
     localStorage.setItem('symphony-role', userRole);
+    const fetchToken = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: 'shubham', role: userRole })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setToken(data.token);
+          localStorage.setItem('symphony-jwt', data.token);
+          console.log(`Successfully obtained JWT for role: ${userRole}`);
+        }
+      } catch (err) {
+        console.error("Failed to authenticate SSO", err);
+      }
+    };
+    fetchToken();
   }, [userRole]);
 
   const toggleTheme = () => {
@@ -93,7 +113,9 @@ function App() {
   const fetchAgents = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/agents`);
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API_BASE}/agents`, { headers });
       if (res.ok) {
         setAgents(await res.json());
       }
@@ -107,10 +129,13 @@ function App() {
   // Fetch gaps and telemetry
   const fetchAnalytics = async () => {
     try {
-      const resGaps = await fetch(`${API_BASE}/admin/gaps`);
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      
+      const resGaps = await fetch(`${API_BASE}/admin/gaps`, { headers });
       if (resGaps.ok) setGaps(await resGaps.json());
 
-      const resTel = await fetch(`${API_BASE}/admin/telemetry`);
+      const resTel = await fetch(`${API_BASE}/admin/telemetry`, { headers });
       if (resTel.ok) setTelemetry(await resTel.json());
     } catch (err) {
       console.error("Failed loading analytics", err);
@@ -124,7 +149,7 @@ function App() {
     } else if (view === 'analytics') {
       fetchAnalytics();
     }
-  }, [view]);
+  }, [view, token]);
 
   // Search agents
   const handleSearch = async (e) => {
@@ -135,9 +160,11 @@ function App() {
     }
     setLoading(true);
     try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch(`${API_BASE}/agents/search`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ query: searchQuery, limit: 10 })
       });
       if (res.ok) {
@@ -173,9 +200,12 @@ function App() {
       }
 
       addLog(`Loopback Check: Querying health at ${parsed.endpoints.health}...`, "info");
+      
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch(`${API_BASE}/agents/onboard`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(parsed)
       });
 
@@ -204,12 +234,11 @@ function App() {
     setChatLoading(true);
 
     try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch(`${API_BASE}/supervisor/chat`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-User-Role': userRole
-        },
+        headers,
         body: JSON.stringify({ query: userQuery })
       });
 
@@ -244,7 +273,9 @@ function App() {
   const triggerClustering = async () => {
     setClusteringLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/admin/gaps/trigger-cluster`, { method: 'POST' });
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API_BASE}/admin/gaps/trigger-cluster`, { method: 'POST', headers });
       if (res.ok) {
         await fetchAnalytics();
         alert("Innovation gap clustering completed successfully!");

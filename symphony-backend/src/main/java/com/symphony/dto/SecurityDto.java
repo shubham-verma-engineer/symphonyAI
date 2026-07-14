@@ -14,4 +14,6 @@ public class SecurityDto {
     private Boolean requiresRBAC;
 
     private List<String> authorizedRoles;
+
+    private String secretKey;
 }

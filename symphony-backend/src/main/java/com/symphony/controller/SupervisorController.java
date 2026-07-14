@@ -35,9 +35,27 @@ public class SupervisorController {
             return ResponseEntity.badRequest().build();
         }
 
-        UUID workspaceId = wsHeader != null ? UUID.fromString(wsHeader) : DatabaseInitializer.DEFAULT_WORKSPACE_ID;
-        UUID userId = userHeader != null ? UUID.fromString(userHeader) : DatabaseInitializer.DEFAULT_USER_ID;
-        String userRole = roleHeader != null ? roleHeader : "Employee";
+        UUID workspaceId = DatabaseInitializer.DEFAULT_WORKSPACE_ID;
+        UUID userId = DatabaseInitializer.DEFAULT_USER_ID;
+        String userRole = "Employee";
+
+        org.springframework.security.core.Authentication auth = 
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth instanceof com.symphony.config.SymphonyAuthentication symAuth) {
+            workspaceId = symAuth.getWorkspaceId();
+            userId = symAuth.getUserId();
+            userRole = symAuth.getRole();
+        } else {
+            if (wsHeader != null && !wsHeader.trim().isEmpty()) {
+                workspaceId = UUID.fromString(wsHeader);
+            }
+            if (userHeader != null && !userHeader.trim().isEmpty()) {
+                userId = UUID.fromString(userHeader);
+            }
+            if (roleHeader != null && !roleHeader.trim().isEmpty()) {
+                userRole = roleHeader;
+            }
+        }
 
         // 1. Audit and Sanitize user query through PII Firewall
         PiiFirewallService.FirewallResult firewallRes = piiFirewall.sanitize(query);
