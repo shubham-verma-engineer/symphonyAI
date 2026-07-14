@@ -343,7 +343,7 @@ function App() {
       </aside>
 
       {/* Main Content Area */}
-      <div className="main-content-layout">
+      <div className={`main-content-layout ${view === 'chat' ? 'chat-view-layout' : ''}`}>
         
         {/* Top Header Row */}
         <header className="top-header">
@@ -372,7 +372,7 @@ function App() {
         </header>
 
         {/* Dynamic Canvas Container */}
-        <div className="canvas-wrapper">
+        <div className={`canvas-wrapper ${view === 'chat' ? 'chat-canvas-wrapper' : ''}`}>
           
           {/* VIEW 1: REGISTRY HUB */}
           {view === 'marketplace' && (
