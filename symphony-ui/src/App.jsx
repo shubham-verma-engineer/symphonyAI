@@ -30,6 +30,7 @@ function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem('symphony-theme') || 'dark');
   const [userRole, setUserRole] = useState(() => localStorage.getItem('symphony-role') || 'Employee');
   const [token, setToken] = useState(() => localStorage.getItem('symphony-jwt') || '');
+  const [workspaceName, setWorkspaceName] = useState(() => localStorage.getItem('symphony-workspace-name') || 'default_ws');
   
   const [agents, setAgents] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -95,7 +96,9 @@ function App() {
         if (res.ok) {
           const data = await res.json();
           setToken(data.token);
+          setWorkspaceName(data.workspaceName || 'default_ws');
           localStorage.setItem('symphony-jwt', data.token);
+          localStorage.setItem('symphony-workspace-name', data.workspaceName || 'default_ws');
           console.log(`Successfully obtained JWT for role: ${userRole}`);
         }
       } catch (err) {
@@ -349,7 +352,7 @@ function App() {
         <header className="top-header">
           <div className="workspace-pill">
             <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--success)' }}></span>
-            <span>default_ws</span>
+            <span>{workspaceName}</span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>

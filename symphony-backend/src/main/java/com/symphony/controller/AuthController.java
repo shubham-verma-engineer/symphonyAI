@@ -6,6 +6,7 @@ import com.symphony.entity.User;
 import com.symphony.entity.WorkspaceMember;
 import com.symphony.repository.UserRepository;
 import com.symphony.repository.WorkspaceMemberRepository;
+import com.symphony.repository.WorkspaceRepository;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +23,7 @@ public class AuthController {
 
     private final UserRepository userRepository;
     private final WorkspaceMemberRepository workspaceMemberRepository;
+    private final WorkspaceRepository workspaceRepository;
     private final JwtUtils jwtUtils;
 
     @PostMapping("/login")
@@ -51,10 +53,17 @@ public class AuthController {
                 wsRole
         );
 
+        String workspaceName = "Default Enterprise Workspace";
+        com.symphony.entity.Workspace ws = workspaceRepository.findById(workspaceId).orElse(null);
+        if (ws != null) {
+            workspaceName = ws.getName();
+        }
+
         return ResponseEntity.ok(LoginResponse.builder()
                 .token(token)
                 .username(user.getUsername())
                 .role(request.getRole())
+                .workspaceName(workspaceName)
                 .build());
     }
 
@@ -74,5 +83,6 @@ public class AuthController {
         private String token;
         private String username;
         private String role;
+        private String workspaceName;
     }
 }
