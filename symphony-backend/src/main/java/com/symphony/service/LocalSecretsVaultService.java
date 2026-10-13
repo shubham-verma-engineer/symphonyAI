@@ -30,6 +30,16 @@ public class LocalSecretsVaultService implements SecretsVaultService {
         }
     }
 
+    /**
+     * Always false: secrets live in an in-process map and are lost on restart.
+     * Stated explicitly because {@code ConfigurationGuard} refuses to start a
+     * production instance backed by a non-durable vault.
+     */
+    @Override
+    public boolean isDurable() {
+        return false;
+    }
+
     @Override
     public String storeSecret(String path, String secretValue) {
         if (secretValue == null) return null;

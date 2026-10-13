@@ -66,18 +66,21 @@ Phase 1 is the configuration spine every later phase asserts against, so it land
 
 ## 3. Phases
 
-### Phase 1 — Mode flag and configuration guard · Status: Pending
+### Phase 1 — Mode flag and configuration guard · Status: Done
 - **Does:** Introduces `symphony.mock.enabled` (default `false`) as the single source of truth for shortcut behaviour, and a startup guard that aborts the boot when production mode is paired with development configuration.
 - **Verify:** `./gradlew bootRun` with no environment variables fails to start, and the thrown message names every unsatisfied invariant. The same command with `SYMPHONY_MOCK_ENABLED=true` starts and logs a clearly marked mock-mode banner. `./gradlew test` passes with the flag enabled via test properties.
 - **Changed files:**
 
   | File | Brief |
   |---|---|
-  | `symphony-backend/src/main/java/com/symphony/config/MockModeProperties.java` | `@ConfigurationProperties("symphony.mock")` holding `enabled`, default `false`; injected anywhere a shortcut is taken (new) |
-  | `symphony-backend/src/main/java/com/symphony/config/ConfigurationGuard.java` | `ApplicationRunner` asserting production invariants and throwing to abort startup; logs the mock-mode banner otherwise (new) |
-  | `symphony-backend/src/main/resources/application.yml` | Add `symphony.mock.enabled: ${SYMPHONY_MOCK_ENABLED:false}`; remove the `:mock-key` default from `openai.api-key` so absence is an error, not a mode (modified) |
-  | `symphony-backend/src/test/resources/application-test.yml` | Test properties enabling mock mode and supplying development key material, so the suite runs offline (new) |
-  | `symphony-backend/src/test/java/com/symphony/ConfigurationGuardTest.java` | Asserts the guard rejects each unsafe combination and accepts a fully configured one (new) |
+  | `symphony-backend/src/main/java/com/symphony/config/MockModeProperties.java` | `@ConfigurationProperties("symphony.mock")` holding `enabled`, default `false` (new — landed early with Phase 2) |
+  | `symphony-backend/src/main/java/com/symphony/config/ConfigurationGuard.java` | `ApplicationRunner` asserting four production invariants and throwing to abort startup; logs the mock-mode banner otherwise. Rule evaluation sits in a package-private static `findViolations` so it is testable without an application context (new) |
+  | `symphony-backend/src/main/java/com/symphony/service/SecretsVaultService.java` | Adds `isDurable()`, defaulting to `false`, so an implementation must positively declare that stored secrets survive a restart (modified) |
+  | `symphony-backend/src/main/java/com/symphony/service/LocalSecretsVaultService.java` | Declares `isDurable()` as `false` explicitly rather than inheriting it, since the value gates a startup check (modified) |
+  | `symphony-backend/src/main/java/com/symphony/Application.java` | Excludes `UserDetailsServiceAutoConfiguration`, which created an unreachable default account and logged a generated password at every boot (modified) |
+  | `symphony-backend/src/main/resources/application.yml` | `symphony.mock.enabled` added with Phase 2. The `:mock-key` fallback on `openai.api-key` is deliberately retained — see the decision log (modified) |
+  | `symphony-backend/src/test/resources/application.yml` | Test properties enabling mock mode (new — landed early with Phase 2, as `application.yml` rather than `application-test.yml`) |
+  | `symphony-backend/src/test/java/com/symphony/ConfigurationGuardTest.java` | 10 tests: each invariant rejected individually, a complete configuration accepted, case and whitespace variants of `mock-key` caught, all four problems reported in one pass, and every message required to name the property to change (new) |
 
 ### Phase 2 — Authenticate the login endpoint · Status: Done
 - **Does:** Makes `/api/v1/auth/login` verify a BCrypt password, derive every identity attribute from the database rather than the request, and fail closed on unknown users. Deletes the header-fallback identity path. Introduces `users.corporate_roles` so the agent-access role layer has a source of truth other than the request body.
@@ -201,6 +204,15 @@ Run against the application on port 8091 with `SYMPHONY_MOCK_ENABLED=true` and a
 | Test suite | 17 tests, 0 failures, 0 errors (6 new auth tests, 1 new PII test, 10 pre-existing) |
 | `symphony-ui` production build | Succeeds; lint clean apart from one pre-existing `exhaustive-deps` warning |
 
+### 6.1b Verified for Phase 1 (2026-10-13)
+
+| Check | Result |
+|---|---|
+| `./gradlew bootRun` with no environment variables | Aborts with `REFUSING TO START`, listing all four unsatisfied invariants in one message |
+| `SYMPHONY_MOCK_ENABLED=true` boot | Starts, logs the `MOCK MODE ENABLED` banner naming all five non-production behaviours, and serves `POST /auth/login` with `200` |
+| `Using generated security password` in the startup log | 0 occurrences (was present on every boot) |
+| Test suite | 27 tests, 0 failures, 0 errors (10 new guard tests on top of Phase 2's 17) |
+
 ### 6.2 End to end, after all phases:
 
 1. **Negative startup:** with no environment variables, `./gradlew bootRun` aborts and names each unsatisfied invariant. This is the single most important check in the plan — it is what converts all six silent failures into loud ones.
@@ -240,6 +252,10 @@ Phases are independently revertable and ordered so that reverting a later phase 
 | 2026-10-13 | Work committed on `feature/0007-production-hardening` rather than `main` | Earlier plans committed straight to `main`. This one changes the authentication path, so it is worth keeping reviewable in isolation; the header's Branch field was updated to match |
 | 2026-10-13 | Added an `HttpStatusEntryPoint` returning 401 | End-to-end verification showed an unauthenticated request to `/supervisor/chat` was rejected with 403. The rejection was correct, but a request carrying no credentials should answer 401 so a client knows to sign in — and 401 is what this plan's verification section specifies |
 | 2026-10-13 | Phase 2 verified against a disposable `pgvector/pgvector:pg17` container named `symphony-postgres` | The suite and the application both need PostgreSQL with pgvector, and none was running locally. The container is local and disposable; it is not a project dependency and is not referenced by any committed file |
+| 2026-10-13 | Phase 1 keeps the `:mock-key` fallback on `openai.api-key`, which this plan had said to remove | Removing it makes the property resolve to empty, and the four service-layer branches still compare against the literal `"mock-key"` until Phase 6. Mock mode would have broken immediately. The guard instead treats both blank *and* `mock-key` as production violations, which achieves the stated goal — absence is an error, not a mode — without reaching into those services early. Phase 6 removes the literal from the YAML and the branching together |
+| 2026-10-13 | `SecretsVaultService.isDurable()` added in Phase 1 rather than Phase 4 | The guard must refuse a production boot backed by a non-durable vault, so it needs a way to ask. Declared as a defaulted interface method returning `false`, so durability has to be claimed deliberately and a future in-memory double cannot pass by omission |
+| 2026-10-13 | Production mode is currently unsatisfiable by design | The vault invariant cannot pass until Phase 4 lands a durable implementation, so no production configuration will start today. This is the honest state of the system — B4 is still open — and the violation message says exactly that and names the phase. `ConfigurationGuardTest` covers the passing case by supplying a durable vault directly |
+| 2026-10-13 | Excluded `UserDetailsServiceAutoConfiguration` | It logged `Using generated security password: …` on every boot. The account was unreachable, since the filter chain configures neither HTTP Basic nor form login, but a reader of a security-sensitive startup log had no way to know that. Noticed in a user-supplied startup log while verifying Phase 2 |
 
 ## 9. Commits / PR
 
