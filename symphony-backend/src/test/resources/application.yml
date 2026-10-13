@@ -46,4 +46,7 @@ symphony:
     secret: dGhpcy1pcy1hLXNlY3JldC1rZXktZm9yLXN5bXBob255LWFpLWp3dC10b2tlbi1nZW5lcmF0aW9uLXdpdGgtMzItYnl0ZXM=
     expiration-ms: 86400000
   vault:
+    # The suite runs against the in-memory vault. SecretsVaultContractTest
+    # builds a Vault-backed instance itself and skips when none is reachable.
+    provider: local
     encryption-key: test-only-local-vault-encryption-key

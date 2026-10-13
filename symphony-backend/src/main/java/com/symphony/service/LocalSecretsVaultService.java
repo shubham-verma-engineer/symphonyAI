@@ -1,7 +1,7 @@
 package com.symphony.service;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
+import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
@@ -13,17 +13,39 @@ import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Service
+/**
+ * In-memory {@link SecretsVaultService} for local offline runs.
+ *
+ * <p>Holds AES-256-GCM ciphertext in a process-local map, so stored secrets do
+ * not survive a restart. Restricted to mock mode: outside it,
+ * {@code HashiCorpSecretsVaultService} is wired instead, and
+ * {@code ConfigurationGuard} refuses to start a production instance backed by a
+ * non-durable vault.
+ */
+@Slf4j
 public class LocalSecretsVaultService implements SecretsVaultService {
+
+    @PostConstruct
+    void warnAboutNonDurability() {
+        log.warn("Using the in-memory secrets vault: stored agent credentials will be LOST on restart, "
+                + "while the agents.credential_vault_uri rows pointing at them will persist. "
+                + "Local development only.");
+    }
+
+    static final String DEFAULT_DEV_KEY = "this-is-a-32-byte-encryption-key-for-local-vault";
 
     private final SecretKeySpec secretKey;
     private final Map<String, String> encryptedStore = new ConcurrentHashMap<>();
     private final SecureRandom random = new SecureRandom();
 
-    public LocalSecretsVaultService(
-            @Value("${symphony.vault.encryption-key:this-is-a-32-byte-encryption-key-for-local-vault}") String rawKey) {
+    public LocalSecretsVaultService(String rawKey) {
+        // Local development only, so an unset key derives a working one rather
+        // than failing the boot. ConfigurationGuard separately refuses to start
+        // production on the known default, and this implementation is never the
+        // production choice.
+        String key = (rawKey == null || rawKey.isBlank()) ? DEFAULT_DEV_KEY : rawKey;
         try {
-            byte[] keyBytes = MessageDigest.getInstance("SHA-256").digest(rawKey.getBytes(StandardCharsets.UTF_8));
+            byte[] keyBytes = MessageDigest.getInstance("SHA-256").digest(key.getBytes(StandardCharsets.UTF_8));
             this.secretKey = new SecretKeySpec(keyBytes, "AES");
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize AES key derivation", e);

@@ -108,8 +108,40 @@ public class AgentService {
             parameterRepository.saveAll(params);
         }
 
+        verifyStoredCredential(savedAgent);
+
         log.info("Successfully onboarded agent '{}' with ID: {}", savedAgent.getName(), savedAgent.getId());
         return savedAgent;
+    }
+
+    /**
+     * Reads back a just-stored credential and marks the agent {@code UNHEALTHY}
+     * if it cannot be resolved.
+     *
+     * <p>Without this, a credential that failed to persist is only discovered
+     * when the Supervisor dispatches to the agent and the agent answers 401 —
+     * far from the cause, and indistinguishable from the agent rejecting a valid
+     * token. The registry would meanwhile show the agent as {@code ACTIVE}. This
+     * is exactly the failure mode the in-memory vault produced on every restart:
+     * secrets gone, {@code credential_vault_uri} rows still pointing at them.
+     */
+    private void verifyStoredCredential(Agent agent) {
+        String uri = agent.getCredentialVaultUri();
+        if (uri == null) {
+            return; // Agent registered without a credential; nothing to verify.
+        }
+
+        boolean resolvable = !(secretsVaultService instanceof HashiCorpSecretsVaultService hashiCorp)
+                || hashiCorp.isResolvable(uri);
+
+        if (!resolvable || secretsVaultService.retrieveSecret(uri) == null) {
+            log.error("Agent '{}' was registered with a credential that cannot be read back from the vault "
+                            + "({}). Marking UNHEALTHY so the registry does not advertise it as usable.",
+                    agent.getName(), uri);
+            agent.setStatus("UNHEALTHY");
+            agentRepository.save(agent);
+            agentRepository.flush();
+        }
     }
 
     public List<AgentSearchMatchDto> search(UUID workspaceId, String query, int limit) {

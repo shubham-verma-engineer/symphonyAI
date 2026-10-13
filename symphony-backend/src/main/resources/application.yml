@@ -37,6 +37,16 @@ symphony:
   mock:
     enabled: ${SYMPHONY_MOCK_ENABLED:false}
 
+  vault:
+    # HashiCorp Vault connection, used outside mock mode. No usable defaults:
+    # a production instance must be told where its Vault is and must supply a
+    # token, and ConfigurationGuard refuses to start without them.
+    uri: ${VAULT_URI:}
+    token: ${VAULT_TOKEN:}
+    kv-mount: ${VAULT_KV_MOUNT:secret}
+    # Only read by the in-memory vault in mock mode.
+    encryption-key: ${SYMPHONY_VAULT_ENCRYPTION_KEY:this-is-a-32-byte-encryption-key-for-local-vault}
+
   dev:
     # Password for the seeded development accounts. Only read when mock mode is
     # on; without it, no accounts are seeded. Has no default on purpose, so no

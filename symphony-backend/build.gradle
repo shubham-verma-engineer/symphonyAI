@@ -37,6 +37,12 @@ dependencies {
     // OkHttp — outbound HTTP for OpenAI API calls
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 
+    // Spring Vault — durable, KMS-backed secret storage for agent credentials.
+    // spring-vault-core only (VaultTemplate); deliberately not
+    // spring-cloud-starter-vault-config, which exists to source application
+    // configuration from Vault and brings bootstrap machinery this does not need.
+    implementation 'org.springframework.vault:spring-vault-core:3.1.2'
+
     // JJWT — JWT authentication tokens
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     runtimeOnly    'io.jsonwebtoken:jjwt-impl:0.12.6'

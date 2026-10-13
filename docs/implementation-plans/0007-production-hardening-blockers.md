@@ -116,19 +116,21 @@ Phase 1 is the configuration spine every later phase asserts against, so it land
   | `symphony-backend/src/main/java/com/symphony/controller/SupervisorController.java` | Drop `Original: '{}'` from the line-62 log statement; log the sanitised flag and masked text only (modified) |
   | `symphony-backend/src/test/java/com/symphony/PiiRedactionTest.java` | Attaches a log appender and asserts no sensitive fixture value reaches any log record (new) |
 
-### Phase 4 — Durable, KMS-backed secrets vault · Status: Pending
-- **Does:** Adds a HashiCorp Vault implementation of the existing `SecretsVaultService` interface, selected when mock mode is off, and reconciles credential URIs that no longer resolve.
-- **Verify:** Against a dev-mode Vault container, onboard an agent with a secret key, restart the application, and confirm the Supervisor still retrieves the credential and injects the `Authorization` header — the exact scenario that fails today. Confirm `LocalSecretsVaultService` is not instantiated when mock mode is off.
+### Phase 4 — Durable, KMS-backed secrets vault · Status: Done
+- **Does:** Adds a HashiCorp Vault implementation of the existing `SecretsVaultService` interface and reconciles credential URIs that no longer resolve.
+- **Verify:** Against a dev-mode Vault container, onboard an agent with a secret key, restart the application, and confirm the credential still resolves — the exact scenario that fails with the in-memory store.
 - **Changed files:**
 
   | File | Brief |
   |---|---|
-  | `symphony-backend/build.gradle` | Add `spring-cloud-starter-vault-config` and the Spring Cloud BOM (modified) |
-  | `symphony-backend/src/main/java/com/symphony/service/HashiCorpSecretsVaultService.java` | `SecretsVaultService` implementation backed by Vault KV v2; `@ConditionalOnProperty` on mock mode being off (new) |
-  | `symphony-backend/src/main/java/com/symphony/service/LocalSecretsVaultService.java` | Add `@ConditionalOnProperty` so it loads only in mock mode; log a startup warning that stored secrets are non-durable (modified) |
-  | `symphony-backend/src/main/java/com/symphony/service/AgentService.java` | On a `credential_vault_uri` that does not resolve, mark the agent `UNHEALTHY` and surface a clear message rather than failing opaquely at execution time (modified) |
-  | `symphony-backend/src/main/resources/application.yml` | Vault connection properties, all environment-driven with no usable defaults (modified) |
-  | `symphony-backend/src/test/java/com/symphony/SecretsVaultContractTest.java` | One contract suite run against both implementations, so they cannot drift (new) |
+  | `symphony-backend/build.gradle` | Add `spring-vault-core:3.1.2`. Deliberately not `spring-cloud-starter-vault-config`, which exists to source application configuration from Vault and brings bootstrap machinery this does not need (modified) |
+  | `symphony-backend/src/main/java/com/symphony/service/HashiCorpSecretsVaultService.java` | `SecretsVaultService` backed by a Vault KV v2 mount. Stores `vault://<mount>/<path>` so a later mount change cannot silently redirect reads, declares `isDurable() == true`, and exposes `isResolvable` so callers can distinguish an unreachable URI from a missing secret (new) |
+  | `symphony-backend/src/main/java/com/symphony/config/VaultProviderConfig.java` | Selects the implementation from `symphony.vault.provider`, defaulting by mock mode; builds the `VaultTemplate`; rejects an unrecognised provider rather than falling back (new) |
+  | `symphony-backend/src/main/java/com/symphony/service/LocalSecretsVaultService.java` | No longer a `@Service`; instantiated by `VaultProviderConfig`. Logs a startup warning that stored secrets are non-durable (modified) |
+  | `symphony-backend/src/main/java/com/symphony/service/AgentService.java` | Reads a credential back immediately after onboarding and marks the agent `UNHEALTHY` when it cannot be resolved, instead of leaving it `ACTIVE` to fail later as an opaque 401 from the agent (modified) |
+  | `symphony-backend/src/main/resources/application.yml` | Vault connection properties, all environment-driven with no usable defaults for `uri` or `token` (modified) |
+  | `symphony-backend/src/test/resources/application.yml` | Pins the suite to the local provider; the contract test builds its own Vault-backed instance (modified) |
+  | `symphony-backend/src/test/java/com/symphony/SecretsVaultContractTest.java` | One abstract contract satisfied by both implementations, so they cannot drift. The Vault-backed nest skips via an assumption when no Vault is reachable, which is visible in the report (new) |
 
 ### Phase 5 — Honest health probes and real signing keys · Status: Pending
 - **Does:** Replaces URL substring-matching with the mock flag in both health checkers, and moves JWT signing to RS256 with vault-held keys and `kid`-based rotation.
@@ -213,6 +215,19 @@ Run against the application on port 8091 with `SYMPHONY_MOCK_ENABLED=true` and a
 | `Using generated security password` in the startup log | 0 occurrences (was present on every boot) |
 | Test suite | 27 tests, 0 failures, 0 errors (10 new guard tests on top of Phase 2's 17) |
 
+### 6.1c Verified for Phase 4 (2026-10-13)
+
+Against `hashicorp/vault:1.17` in dev mode on `localhost:8200`.
+
+| Check | Result |
+|---|---|
+| Production-mode boot with a durable vault and non-default key material | Starts; logs `Configuration guard passed` — the first configuration that satisfies all four invariants |
+| Onboard an agent carrying a `secretKey` | `ACTIVE`, `credentialVaultUri = vault://secret/symphony/agents/<uuid>/token` |
+| **Kill the application, boot a fresh JVM, re-read** | Agent still `ACTIVE`, URI unchanged, and the secret reads back from Vault as `sk-survives-restart-12345`. With the in-memory store this is the step that destroyed every credential while leaving the rows behind |
+| Legacy `vault:/…` URI (no mount) against the Vault provider | Reported unresolvable rather than guessed at (`legacyInMemoryUrisAreReportedUnresolvable`) |
+| Unrecognised `symphony.vault.provider` | Startup fails naming the accepted values |
+| Test suite | 45 tests, 0 failures, 0 errors, 0 skipped — including 18 contract tests across both implementations |
+
 ### 6.2 End to end, after all phases:
 
 1. **Negative startup:** with no environment variables, `./gradlew bootRun` aborts and names each unsatisfied invariant. This is the single most important check in the plan — it is what converts all six silent failures into loud ones.
@@ -256,6 +271,11 @@ Phases are independently revertable and ordered so that reverting a later phase 
 | 2026-10-13 | `SecretsVaultService.isDurable()` added in Phase 1 rather than Phase 4 | The guard must refuse a production boot backed by a non-durable vault, so it needs a way to ask. Declared as a defaulted interface method returning `false`, so durability has to be claimed deliberately and a future in-memory double cannot pass by omission |
 | 2026-10-13 | Production mode is currently unsatisfiable by design | The vault invariant cannot pass until Phase 4 lands a durable implementation, so no production configuration will start today. This is the honest state of the system — B4 is still open — and the violation message says exactly that and names the phase. `ConfigurationGuardTest` covers the passing case by supplying a durable vault directly |
 | 2026-10-13 | Excluded `UserDetailsServiceAutoConfiguration` | It logged `Using generated security password: …` on every boot. The account was unreachable, since the filter chain configures neither HTTP Basic nor form login, but a reader of a security-sensitive startup log had no way to know that. Noticed in a user-supplied startup log while verifying Phase 2 |
+| 2026-10-13 | Vault choice moved onto `symphony.vault.provider` instead of `@ConditionalOnProperty` keyed to mock mode | Tying the two together conflated whether the LLM is faked with where secrets live, which made the one combination needed to test durability locally — faked LLM, real Vault — impossible to express. It also spread a single choice across two files where neither named the alternative. The property defaults by mock mode, so nothing changes for anyone who does not set it, and `ConfigurationGuard` still blocks a non-durable vault in production |
+| 2026-10-13 | Chose `spring-vault-core` over `spring-cloud-starter-vault-config` | The starter's purpose is sourcing application configuration from Vault, which this does not need; it would add bootstrap machinery and a Spring Cloud BOM for a `VaultTemplate` the core artefact provides directly |
+| 2026-10-13 | Stored URIs carry the mount (`vault://secret/…`), unlike the in-memory form (`vault:/…`) | Recording the mount means changing `symphony.vault.kv-mount` cannot silently redirect reads for existing rows. It also makes legacy in-memory URIs identifiable rather than indistinguishable, which is what lets `AgentService` report them instead of guessing |
+| 2026-10-13 | `AgentService` reads a credential back at onboarding time | Previously a credential that failed to persist surfaced only when the Supervisor dispatched and the agent answered 401 — far from the cause, and indistinguishable from the agent rejecting a valid token, while the registry still showed `ACTIVE`. Reading back at registration moves the error to the moment it is caused |
+| 2026-10-13 | Production mode is now satisfiable | Verified: with a durable vault and non-default key material, the guard passes and the application starts. Phase 4 closed the last invariant that could not be met |
 
 ## 9. Commits / PR
 
