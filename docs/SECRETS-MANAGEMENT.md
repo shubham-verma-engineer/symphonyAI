@@ -47,11 +47,16 @@ sequenceDiagram
 To defend against SQL injection data dumps or compromised database backups, SymphonyAI encrypts sensitive text columns in PostgreSQL at the application layer before writing to the database:
 
 * **Encryption Standard**: Advanced Encryption Standard in Galois/Counter Mode (**AES-256-GCM**), which provides both confidentiality and data integrity (authenticated encryption).
-* **Target Columns**: 
-  * `telemetry_logs.query_text` (Contains user prompts, potentially including sensitive corporate info).
-  * `failed_queries.raw_query` (Contains raw searches that failed).
-  * `workspace_members.joined_at` and `users.email` (For PII compliance).
+* **Mechanism**: `AesGcmEncryptor` is a JPA `AttributeConverter<String, String>` applied per field with `@Convert`, so encryption and decryption happen transparently on the entity boundary. A fresh 12-byte IV is generated per write and prepended to the ciphertext, and the result is base64-encoded — which is why `V4__increase_query_text_columns_length.sql` widens the affected columns to `TEXT`.
+* **Encrypted today**:
+  * `telemetry_logs.query_text` — user prompts, potentially including sensitive corporate info (`TelemetryLog.queryText`).
+  * `failed_queries.raw_query` — raw searches that yielded no agent match (`FailedQuery.rawQuery`).
+* **Not yet encrypted (planned)**:
+  * `users.email` — requires a deterministic or blind-index scheme, because the column carries a `UNIQUE` constraint and is looked up by exact value during login. A randomised-IV GCM converter would break both.
+* **Explicitly out of scope**: `workspace_members.joined_at`. An earlier revision of this document listed it as a target; it is a timestamp carrying no PII, and encrypting it to a string column would destroy range queries and ordering for no privacy gain.
 * **Key Derivation**: Keys are derived from a master encryption key stored in the corporate Secrets Vault and loaded into the Spring Boot application configuration at boot time.
+
+> **Current implementation status**: `SecretsVaultService` is an interface, but the only implementation is `LocalSecretsVaultService`, which keeps AES-256-GCM ciphertext in an in-process `ConcurrentHashMap` keyed by vault path. It derives its AES key by SHA-256 over `symphony.vault.encryption-key`, whose default value is a hardcoded development string. **Nothing is persisted: every stored agent credential is lost on application restart, while the `agents.credential_vault_uri` rows pointing at them survive, leaving dangling references.** Shipping to any shared environment requires a durable, KMS-backed implementation of the same interface and a non-default key supplied by the environment.
 
 ---
 

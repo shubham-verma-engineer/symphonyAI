@@ -37,13 +37,46 @@ Comprehensive project and implementation specifications are detailed below:
 
 ```
 symphonyAI/
-├── README.md                # This file
-└── docs/                    # Core project specifications and architecture docs
-    ├── PRD.md
-    ├── ARCHITECTURE.md
-    ├── SYSTEM_DESIGN.md
-    ├── SECURITY-AND-ACCESS.md
-    ├── SECRETS-MANAGEMENT.md
-    ├── ROADMAP.md
-    └── FRONTEND-SPEC.md
+├── README.md                     # This file
+├── docs/                         # Core project specifications and architecture docs
+│   ├── PRD.md
+│   ├── product_understanding.md
+│   ├── ARCHITECTURE.md
+│   ├── SYSTEM_DESIGN.md
+│   ├── SECURITY-AND-ACCESS.md
+│   ├── SECRETS-MANAGEMENT.md
+│   ├── ROADMAP.md
+│   ├── FRONTEND-SPEC.md
+│   └── implementation-plans/     # Per-feature implementation plans (0001-0006)
+├── symphony-backend/             # Spring Boot 3.4.5 / Java 21 gateway
+│   └── src/main/
+│       ├── java/com/symphony/    # config, controller, dto, entity, repository, service
+│       └── resources/
+│           ├── application.yml
+│           └── db/migration/     # Flyway V1-V5
+└── symphony-ui/                  # React 19 + Vite SPA
+    └── src/
+        ├── App.jsx
+        ├── App.css
+        └── main.jsx
+```
+
+---
+
+## Running Locally
+
+Backend requires PostgreSQL with the `pgvector` and `uuid-ossp` extensions available on `jdbc:postgresql://localhost:5432/symphony`. Flyway applies migrations on boot; the API listens on port **8091**.
+
+```bash
+cd symphony-backend && ./gradlew bootRun
+```
+
+```bash
+cd symphony-ui && npm install && npm run dev
+```
+
+With `OPENAI_API_KEY` unset, `openai.api-key` falls back to `mock-key`. Every LLM and embedding call then takes a deterministic offline mock path — seeded pseudo-random embeddings, canned parameter extraction, and bypassed outbound agent calls — so the platform is fully demoable without network access or API spend. Set a real key to exercise the live routing paths.
+
+```bash
+cd symphony-backend && ./gradlew test
 ```

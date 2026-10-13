@@ -16,6 +16,8 @@ SymphonyAI adheres to a premium, modern design language:
 
 ## 2. Route Architecture
 
+### 2.1 Target Routes
+
 ```
 /                         -> Marketplace Portal (Browse/Search)
 /onboard                  -> Creator Dashboard (Register Agent / Upload Manifest)
@@ -23,6 +25,20 @@ SymphonyAI adheres to a premium, modern design language:
 /admin/gaps               -> Admin Leaderboard (Clustered Gaps & Telemetry)
 /admin/billing            -> Admin Cost & Token Accounting Dashboard
 ```
+
+### 2.2 As Implemented Today
+
+No client-side router is wired up yet. `symphony-ui/src/App.jsx` is a single component that switches on a `view` state value, so none of the screens has its own URL — no deep links, no browser back/forward, no refresh-safe state.
+
+| Target route | `view` value | Screen heading |
+| :--- | :--- | :--- |
+| `/` | `marketplace` | Internal Registry |
+| `/onboard` | `onboard` | Onboard Agent |
+| `/chat` | `chat` | Supervisor Chat |
+| `/admin/gaps` | `analytics` | Demand Backlog |
+| `/admin/billing` | `billing` | Token Billing & Allocation |
+
+Adopting the target routes means adding a router and splitting `App.jsx` (currently ~980 lines) into per-route components.
 
 ---
 

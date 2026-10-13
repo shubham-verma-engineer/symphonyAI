@@ -8,6 +8,8 @@ This document details the security and governance architecture of SymphonyAI, in
 
 SymphonyAI enforces centralized authentication via corporate Single Sign-On (SSO) using OpenID Connect (OIDC) or OAuth 2.0.
 
+> **Implementation status**: the OIDC redirect and code-exchange flow below is the target design and is **not yet wired up**. Today `POST /api/v1/auth/login` authenticates a local username and password against the `users` table and issues the platform JWT directly (JJWT, HS256, signed with `symphony.jwt.secret`, 24h expiry). `JwtAuthenticationFilter` then validates that token on every request and populates a `SymphonyAuthentication`. The JWT shape and all downstream RBAC logic are already built against the payload shown below, so swapping the credential check for an OIDC code exchange does not disturb the rest of the chain.
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -85,12 +87,20 @@ graph TD
 ```
 
 ### 3.1 Masking Algorithm
-1. **NER Scan**: Utilizes standard Named Entity Recognition models to identify:
-   * Personally Identifiable Information: `NAME`, `EMAIL`, `PHONE`, `SSN`.
-   * Sensitive Corporate Info: `CREDIT_CARD`, `BANK_ACCOUNT`, `IP_ADDRESS`.
+1. **Entity Scan**: identifies sensitive spans in the prompt.
+   * **Implemented today** — `PiiFirewallService` runs three regex patterns only, emitting `[MASKED_EMAIL_n]`, `[MASKED_CARD_n]`, and `[MASKED_SSN_n]` placeholders:
+
+     | Entity | Pattern basis |
+     | :--- | :--- |
+     | `EMAIL` | `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}` |
+     | `CREDIT_CARD` | 13–16 digits with optional spaces/hyphens; **no Luhn check, so long digit runs such as order or invoice numbers are masked as false positives** |
+     | `SSN` | `\d{3}-\d{2}-\d{4}`; **misses unformatted 9-digit SSNs** |
+
+   * **Planned** — a Named Entity Recognition model to additionally cover `NAME`, `PHONE`, `BANK_ACCOUNT`, and `IP_ADDRESS`. Regex alone cannot catch `NAME`, so the person names in the §3.2 example below are **not** masked by the current implementation.
 2. **Tokenization**: Replaces matching text strings with unique, serialized tokens:
    * *"Send salary sheet of Jane Doe to hr-agent@enterprise.com"* $\rightarrow$ *"Send salary sheet of `[MASKED_NAME_01]` to `[MASKED_EMAIL_01]`"*.
 3. **Session Cache**: Stores the mapping `{ "[MASKED_NAME_01]": "Jane Doe", "[MASKED_EMAIL_01]": "hr-agent@enterprise.com" }` in an encrypted Redis session cache with a Time-To-Live (TTL) of 15 minutes.
+   * **Implementation status**: Redis is not yet a dependency. `PiiFirewallService.sanitize()` returns the token map inside its `FirewallResult`, and `SupervisorService` holds it in local scope for the life of the single request, discarding it when the call returns. This is adequate for one-shot routing but will not survive multi-turn conversations or a horizontally scaled gateway — both of which need the shared, TTL'd store described above.
 4. **Response Detokenization**: Before rendering the response back to the user, the PII Proxy maps any occurring `[MASKED_XX]` tags back to their raw cached strings.
 
 ---
@@ -98,6 +108,7 @@ graph TD
 ## 4. Multi-Tenant Hard Isolation
 
 To prevent information leaks between separate organizational entities or business groups:
+* Workspace isolation is enforced in the repository layer today: `workspace_id` is threaded from the JWT through the service calls into every agent, telemetry, failed-query, and gap lookup. It is a **convention enforced by code review**, not by the database — PostgreSQL Row-Level Security is not enabled, so a future query that omits the predicate would silently cross tenants. Enabling RLS with a per-request `SET LOCAL` tenant parameter would turn this into a guarantee.
 * All database queries verifying or retrieving agents, telemetry, or logs MUST include a hard-coded `workspace_id` predicate:
   ```sql
   SELECT * FROM agents WHERE id = ? AND workspace_id = ?;

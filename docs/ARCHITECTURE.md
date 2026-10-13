@@ -142,8 +142,40 @@ sequenceDiagram
 
 ## 4. Technology Stack Mapping
 
-* **Backend Services**: Java / Spring Boot (Spring WebFlux for streaming responses and high concurrency, Spring Security for SSO/OAuth).
-* **Primary Relational DB**: PostgreSQL (retains user tables, agent metadata registry tables, logs, and telemetry).
-* **Vector DB Engine**: pgvector extension on PostgreSQL (cos-similarity matching on agent manifests).
-* **Secrets Storage**: HashiCorp Vault or Google Secret Manager (storing API keys for external developer agents).
-* **LLM Engine**: OpenAI API (`gpt-4o-mini` for intent routing/chaining decisions, `text-embedding-3-small` for search embeddings).
+The table separates what is **implemented today** from what the target architecture calls for, so the two are not conflated.
+
+| Concern | Implemented today | Target / planned |
+| :--- | :--- | :--- |
+| **Backend runtime** | Java 21, Spring Boot 3.4.5, `spring-boot-starter-web` (blocking Servlet MVC), Spring Security, Spring Data JPA | Spring WebFlux (or MVC on virtual threads) for streamed Supervisor responses and high fan-out agent calls |
+| **Outbound HTTP** | OkHttp 4.12.0 (agent calls, OpenAI calls, heartbeat pings) | Unchanged; add per-agent circuit breakers and bulkheads |
+| **Relational DB** | PostgreSQL via JPA, `ddl-auto: validate`, Flyway `V1`–`V5` | Unchanged |
+| **Vector engine** | pgvector on the same PostgreSQL instance, HNSW cosine index on `agents.description_embedding` | Unchanged |
+| **Secrets storage** | `LocalSecretsVaultService` — an in-process `ConcurrentHashMap` holding AES-256-GCM ciphertext behind the `SecretsVaultService` interface. **Non-durable: secrets are lost on restart.** | A real KMS-backed provider (HashiCorp Vault / GCP Secret Manager / AWS Secrets Manager) implementing the same `SecretsVaultService` interface |
+| **PII token store** | `PiiFirewallService` returns a per-request `FirewallResult.tokenMap` held in request scope for the duration of the call | Encrypted Redis session cache with a 15-minute TTL, per `SECURITY-AND-ACCESS.md` §3.3 |
+| **Auth** | Local username/password login issuing a platform JWT (JJWT 0.12.6, HS256, 24h expiry) via `POST /api/v1/auth/login` | Corporate SSO (OIDC/OAuth 2.0) code exchange, as specced in `SECURITY-AND-ACCESS.md` §1 |
+| **LLM engine** | OpenAI API: `gpt-4o-mini` for routing/DAG planning and parameter extraction, `text-embedding-3-small` for embeddings. **When `openai.api-key` is unset it defaults to `mock-key`, which routes every LLM and embedding call down a deterministic offline mock path** (seeded pseudo-random vectors, canned parameters, bypassed agent HTTP calls) so the platform demos without network access. | Unchanged, plus a provider-agnostic abstraction and a hard refusal to start in `prod` profile while `mock-key` is active |
+| **Frontend** | React 19 + Vite SPA, single `App.jsx` with `view`-state switching, vanilla CSS ("Alabaster & Obsidian") | Client-side router matching the paths in `FRONTEND-SPEC.md` §2 |
+| **Scheduling** | Spring `@EnableScheduling`; `AgentHeartbeatService.runHeartbeatCheck()` at `symphony.heartbeat.interval-ms` (default 30s) | Distributed-lock-guarded scheduling so only one instance pings per interval |
+| **Not yet present** | — | Creator CLI tool, Redis, message broker, dedicated Gap-clustering worker process (clustering currently runs in-process in `GapClusteringService`) |
+
+### 4.1 Implemented API Surface
+
+| Method | Path | Notes |
+| :--- | :--- | :--- |
+| `POST` | `/api/v1/auth/login` | Issues platform JWT |
+| `POST` | `/api/v1/agents/onboard` | Manifest validation, `/health` probe, embedding, vault write |
+| `GET` | `/api/v1/agents` | Workspace-scoped registry listing |
+| `POST` | `/api/v1/agents/search` | Semantic (pgvector cosine) agent search |
+| `POST` | `/api/v1/supervisor/chat` | Intent routing, DAG chaining, RBAC + PII firewall, telemetry |
+| `GET` | `/api/v1/admin/gaps` | Clustered innovation-gap leaderboard |
+| `GET` | `/api/v1/admin/telemetry` | Aggregate execution telemetry |
+| `GET` | `/api/v1/admin/billing/stats` | Department token-cost allocation |
+| `GET` | `/api/v1/admin/billing/audit` | Per-execution billing audit rows |
+| `POST` | `/api/v1/admin/gaps/trigger-cluster` | Manually trigger gap clustering |
+
+### 4.2 Known Divergences from the Diagrams Above
+
+* The **Client Layer** diagram shows a Creator CLI tool; only the web UI exists today.
+* The **Gap Clustering Engine** is drawn as a separate background service; it is currently a Spring bean (`GapClusteringService`) inside the same process, invokable on demand via `POST /api/v1/admin/gaps/trigger-cluster`.
+* The onboarding and routing sequence diagrams show a dedicated **PII/RBAC Firewall** hop. In code, RBAC checks and `PiiFirewallService` calls are invoked inline from `SupervisorService` rather than crossing a process or network boundary.
+* Agent onboarding and the heartbeat checker both **skip the real `/health` probe** when the URL contains `mock`, `localhost`, or `127.0.0.1`, marking the agent `ACTIVE` unconditionally. This is a local-development affordance, not target behaviour.

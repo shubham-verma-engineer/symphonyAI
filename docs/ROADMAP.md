@@ -33,6 +33,14 @@ This document outlines the strategic implementation phases, deliverables, and ti
 
 ---
 
+> **Delivery status as of 2026-10-13.** All three phases have landed in some form on `main`; the per-plan breakdown lives in `docs/implementation-plans/README.md` (plans 0001–0006, all Done). What remains is production hardening rather than net-new phases:
+>
+> | Phase | Status | Outstanding |
+> | :--- | :--- | :--- |
+> | Phase 1 — Directory & Discovery | Delivered | Creator CLI never built; `/health` probe is bypassed for `localhost`/`mock` URLs |
+> | Phase 2 — Routing & Telemetry | Delivered | Gap clustering runs in-process and on-demand, not as a cron worker; no scheduled clustering job |
+> | Phase 3 — Orchestration & Governance | Delivered | SSO is local login, not OIDC; PII store is request-scoped, not Redis; secrets vault is in-memory, not KMS-backed |
+
 ## 1. Phase 1: The Unified Directory & Discovery UI (Weeks 1 - 4)
 
 * **Objective**: Catalog all employee-built AI tools in a standardized internal registry, reducing discovery friction.

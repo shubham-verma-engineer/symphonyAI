@@ -3,11 +3,11 @@
 | Field | Value |
 |---|---|
 | **Plan #** | 0006 |
-| **Status** | Draft |
+| **Status** | Done |
 | **Branch** | `main` |
 | **Author** | Antigravity + Shubham |
 | **Created** | 2026-07-14 |
-| **Last updated** | 2026-07-14 |
+| **Last updated** | 2026-10-13 |
 | **Related design doc** | `docs/SYSTEM_DESIGN.md` |
 
 ## 1. Understanding
@@ -15,7 +15,7 @@
 The goal is to implement a background health checker that pings registered agents periodically and updates their status in the registry.
 - Background Scheduling: Enable Spring Boot task scheduling (`@EnableScheduling`) on the Application starter class.
 - Automated Heartbeat checker: Create `AgentHeartbeatService` running a `@Scheduled` background method checking all onboarded agents.
-- Registry Synchronization: Automatically check `/health` endpoints and update the agent status flag inside the `agents` database table to `ACTIVE` or `OFFLINE` dynamically.
+- Registry Synchronization: Automatically check `/health` endpoints and update the agent status flag inside the `agents` database table to `ACTIVE` or `UNHEALTHY` dynamically.
 - Mock Bypass: To preserve local testing functionality, automatically resolve mock/localhost endpoints to `ACTIVE` status without firing real network calls.
 
 ## 2. Approach
@@ -30,7 +30,7 @@ The goal is to implement a background health checker that pings registered agent
 
 ## 3. Phases
 
-### Phase 1 — Enable Scheduling & Create Heartbeat Service · Status: Pending
+### Phase 1 — Enable Scheduling & Create Heartbeat Service · Status: Done
 - **Does**: Enable scheduling in the main application class and build the scheduled service class.
 - **Verify**: Compile backend and verify service class loads correctly.
 - **Changed files**:
@@ -40,7 +40,7 @@ The goal is to implement a background health checker that pings registered agent
   | `symphony-backend/src/main/java/com/symphony/Application.java` | Add `@EnableScheduling` class annotation (modified) |
   | `symphony-backend/src/main/java/com/symphony/service/AgentHeartbeatService.java` | Background scheduled task service logic (new) |
 
-### Phase 2 — Verification & Test Suites · Status: Pending
+### Phase 2 — Verification & Test Suites · Status: Done
 - **Does**: Write integration tests to check dynamic status changes based on endpoint responses.
 - **Verify**: Run JUnit test suite.
 - **Changed files**:
@@ -68,3 +68,5 @@ The goal is to implement a background health checker that pings registered agent
 | Date | Change | Why |
 |---|---|---|
 | 2026-07-14 | Initial draft | Proposed plan for real-time heartbeat checks |
+| 2026-10-13 | Marked Done; both phases complete | Implemented in commit `31cbadd`; `@EnableScheduling` on `Application.java`, `AgentHeartbeatService.runHeartbeatCheck()` scheduled at `symphony.heartbeat.interval-ms` (default 30000ms), and `AgentHeartbeatIntegrationTest` asserting status transitions |
+| 2026-10-13 | Unhealthy status named `UNHEALTHY`, not `OFFLINE` | The `agents.status` CHECK constraint in `V1__init_schema.sql` permits only `PENDING`, `ACTIVE`, `UNHEALTHY`, `DEPRECATED`; writing `OFFLINE` would violate it |
