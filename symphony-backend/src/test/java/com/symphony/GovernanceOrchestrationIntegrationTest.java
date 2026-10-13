@@ -88,14 +88,14 @@ public class GovernanceOrchestrationIntegrationTest {
 
         // Case 1: Unauthorized Role -> Expected Block
         SupervisorResponseDto blockResponse = supervisorService.routeAndExecute(
-                wsId, userId, "Employee", "Help me with payroll checks please"
+                wsId, userId, List.of("Employee"), "Employee", "Help me with payroll checks please"
         );
         assertEquals("forbidden", blockResponse.getStatus());
         assertTrue(blockResponse.getTextResponse().contains("Access Denied"));
 
         // Case 2: Authorized Role -> Expected Pass (will try to execute and fail on socket connection, but not forbidden!)
         SupervisorResponseDto passResponse = supervisorService.routeAndExecute(
-                wsId, userId, "HR", "Help me with payroll checks please"
+                wsId, userId, List.of("HR"), "HR", "Help me with payroll checks please"
         );
         assertNotEquals("forbidden", passResponse.getStatus());
         assertEquals("payroll-agent", passResponse.getMatchedAgent());
@@ -136,7 +136,7 @@ public class GovernanceOrchestrationIntegrationTest {
 
         // Run compound chaining query
         SupervisorResponseDto chainResponse = supervisorService.routeAndExecute(
-                wsId, userId, "Employee", "summarize document details and then translate them to French"
+                wsId, userId, List.of("Employee"), "Employee", "summarize document details and then translate them to French"
         );
 
         // Assert workflow pipeline
@@ -185,7 +185,7 @@ public class GovernanceOrchestrationIntegrationTest {
 
         // 3. Verify execution routing works and triggers dispatch
         SupervisorResponseDto response = supervisorService.routeAndExecute(
-                wsId, userId, "Employee", "execute test agent query"
+                wsId, userId, List.of("Employee"), "Employee", "execute test agent query"
         );
         assertEquals("secured-agent", response.getMatchedAgent());
     }

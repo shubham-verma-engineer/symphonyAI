@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Plan #** | 0007 |
-| **Status** | Approved |
+| **Status** | In Progress |
 | **Branch** | `feature/0007-production-hardening` |
 | **Author** | Claude + Shubham |
 | **Created** | 2026-10-13 |
@@ -79,23 +79,32 @@ Phase 1 is the configuration spine every later phase asserts against, so it land
   | `symphony-backend/src/test/resources/application-test.yml` | Test properties enabling mock mode and supplying development key material, so the suite runs offline (new) |
   | `symphony-backend/src/test/java/com/symphony/ConfigurationGuardTest.java` | Asserts the guard rejects each unsafe combination and accepts a fully configured one (new) |
 
-### Phase 2 — Authenticate the login endpoint · Status: Pending
-- **Does:** Makes `/api/v1/auth/login` verify a BCrypt password, derive role and workspace from the database rather than the request, and fail closed on unknown users. Deletes the header-fallback identity path.
-- **Verify:** `POST /login` with a correct password returns a token whose `roles` claim matches `users.role_flag`. The same request with a wrong password, and with an unknown username, both return 401 — and critically, neither returns a token for the default user. A request carrying `role: "ADMIN"` in the body receives a token with the database role, proving the field is ignored. A `/supervisor/chat` request bearing only `X-User-Role: ADMIN` and no JWT returns 401.
+### Phase 2 — Authenticate the login endpoint · Status: Done
+- **Does:** Makes `/api/v1/auth/login` verify a BCrypt password, derive every identity attribute from the database rather than the request, and fail closed on unknown users. Deletes the header-fallback identity path. Introduces `users.corporate_roles` so the agent-access role layer has a source of truth other than the request body.
+- **Verify:** `POST /login` with a correct password returns a token whose `roles` claim matches `users.corporate_roles` and whose `platform_role` matches `users.role_flag`. Wrong password and unknown username both return 401, and neither yields a token for the default user. The `employee` account cannot obtain the `Admin` role, because no request field expresses one. A `/supervisor/chat` request with no JWT returns 401 regardless of `X-User-Role`.
 - **Changed files:**
 
   | File | Brief |
   |---|---|
-  | `symphony-backend/src/main/java/com/symphony/config/SecurityConfig.java` | Add `BCryptPasswordEncoder` bean (modified) |
-  | `symphony-backend/src/main/java/com/symphony/controller/AuthController.java` | `LoginRequest` gains `password`, loses `role`; verify hash, resolve role from `users.role_flag` and workspace from `workspace_members`, return 401 on unknown user or mismatch, drop the `DEFAULT_USER_ID` fallback (modified) |
-  | `symphony-backend/src/main/java/com/symphony/controller/SupervisorController.java` | Delete the `X-Workspace-Id` / `X-User-Id` / `X-User-Role` fallback block; require `SymphonyAuthentication` from the security context (modified) |
-  | `symphony-backend/src/main/java/com/symphony/config/DatabaseInitializer.java` | Seed a real BCrypt hash from `symphony.dev.seed-password` instead of the `"$2a$10$xyz"` placeholder; only seed when mock mode is on (modified) |
-  | `symphony-backend/src/main/java/com/symphony/entity/User.java` | Add `@JsonIgnore` to `passwordHash` so it cannot surface through any serialisation path (modified) |
-  | `symphony-ui/src/App.jsx` | Login form sends `password` and stops sending a chosen `role`; display the role returned by the server (modified) |
-  | `symphony-backend/src/test/java/com/symphony/AuthenticationIntegrationTest.java` | Covers correct login, wrong password, unknown username, ignored role field, and header-spoofing rejection (new) |
+  | `symphony-backend/src/main/resources/db/migration/V6__add_user_corporate_roles.sql` | Adds `users.corporate_roles`; the agent-access role layer previously had no column and was taken from the request (new) |
+  | `symphony-backend/src/main/java/com/symphony/config/MockModeProperties.java` | `symphony.mock.enabled`, default false. Belongs to Phase 1 but landed here because seeding gates on it (new) |
+  | `symphony-backend/src/main/java/com/symphony/config/SecurityConfig.java` | Add `BCryptPasswordEncoder` bean, and an `HttpStatusEntryPoint` so an unauthenticated request to a protected path answers 401 rather than 403 (modified) |
+  | `symphony-backend/src/main/java/com/symphony/controller/AuthController.java` | `LoginRequest` is now `{username, password}`; verifies the hash, resolves roles and workspace from the database, 401 on unknown user or mismatch, drops the `DEFAULT_USER_ID` fallback, compares against a dummy hash on the missing-user path so timing does not distinguish the two failures (modified) |
+  | `symphony-backend/src/main/java/com/symphony/config/JwtUtils.java` | `generateToken` takes the corporate role list and the platform role instead of one caller-supplied string; emits both the `roles` and `platform_role` claims (modified) |
+  | `symphony-backend/src/main/java/com/symphony/config/SymphonyAuthentication.java` | Carries the full corporate role list plus the platform role; `getRole()` kept for display and telemetry only (modified) |
+  | `symphony-backend/src/main/java/com/symphony/config/JwtAuthenticationFilter.java` | Extracts every role from the `roles` claim rather than only the first, and grants one authority per role (modified) |
+  | `symphony-backend/src/main/java/com/symphony/service/SupervisorService.java` | `isRbacBlocked` intersects against the user's whole role set; `routeAndExecute` takes that set alongside the display role (modified) |
+  | `symphony-backend/src/main/java/com/symphony/controller/SupervisorController.java` | Deletes the `X-Workspace-Id` / `X-User-Id` / `X-User-Role` fallback; requires `SymphonyAuthentication`; also drops the unmasked query from the log line (Phase 3's fix, applied here to avoid touching the file twice) (modified) |
+  | `symphony-backend/src/main/java/com/symphony/config/DatabaseInitializer.java` | Seeds three accounts spanning both role layers with real BCrypt hashes from `symphony.dev.seed-password`; only runs in mock mode, and re-hashes on boot so pre-existing placeholder hashes are replaced (modified) |
+  | `symphony-backend/src/main/java/com/symphony/entity/User.java` | `@JsonIgnore` on `passwordHash`; adds `corporateRoles` and a `getCorporateRoleList()` helper (modified) |
+  | `symphony-backend/src/main/resources/application.yml` | Adds `symphony.mock.enabled` and `symphony.dev.seed-password`, the latter with no default so no usable credential is committed (modified) |
+  | `symphony-backend/src/test/resources/application.yml` | Test configuration enabling mock mode and supplying a seed password, so the suite has credentials to authenticate against (new) |
+  | `symphony-ui/src/App.jsx` | Replaces the role `<select>` and the automatic token fetch with a real sign-in form, a signed-out state, read-only session identity, and sign-out (modified) |
+  | `symphony-ui/src/index.css` | Layout classes for the sign-in screen and the identity pill; the form reuses the existing card, form-group, form-control and button primitives (modified) |
+  | `symphony-backend/src/test/java/com/symphony/AuthenticationIntegrationTest.java` | Covers correct login, wrong password, unknown username, blank credentials, no role escalation, and that no placeholder hash survives (new) |
 
-### Phase 3 — Stop logging unmasked PII · Status: Pending
-- **Does:** Removes the pre-mask query from the Supervisor log line and adds a regression test.
+### Phase 3 — Stop logging unmasked PII · Status: In Progress
+- **Does:** Removes the pre-mask query from the Supervisor log line and adds a regression test. The log-line change itself landed with Phase 2, since both edits touch the same method; only the regression test remains.
 - **Verify:** Submit a query containing a fixture SSN and card number; assert captured log output contains neither, while the masked placeholders are still present for traceability.
 - **Changed files:**
 
@@ -172,7 +181,27 @@ Deliberately excluded — each is real, none blocks deployment:
 
 ## 6. Verification
 
-End to end, after all phases:
+### 6.1 Verified for Phase 2 (2026-10-13)
+
+Run against the application on port 8091 with `SYMPHONY_MOCK_ENABLED=true` and a disposable `pgvector/pgvector:pg17` container.
+
+| Check | Result |
+|---|---|
+| `POST /auth/login {"username":"attacker","role":"ADMIN"}` — the original attack | `401` |
+| Unknown username with a valid password — the old default-user fallback | `401`, no token |
+| Correct username, wrong password | `401` |
+| `employee` logging in while injecting `role`, `platformRole` and `roles: ["Admin"]` into the body | `200` with `platform_role: USER`, `roles: ["Employee"]`, `membership_role: VIEWER` — every injected field ignored |
+| `POST /supervisor/chat` with `X-User-Role: ADMIN` and no JWT | `401` |
+| `employee` JWT plus spoofed `X-User-Role: HR` against an HR-only agent | `forbidden`, "Access Denied … role (Employee)" — the header is ignored |
+| `shubham` (`roles: [Admin, HR]`) against the same HR-only agent | Passes RBAC on `HR`, the **second** entry in the list — the case the previous single-string check would have wrongly refused |
+| Flyway history | `V1`–`V6` applied, including `add user corporate roles` |
+| Seeded accounts | `employee`/USER/Employee, `hr.specialist`/CREATOR/HR, `shubham`/ADMIN/Admin,HR — all with 60-character `$2a$10$` hashes, no placeholder remaining |
+| Raw SSN, card number and email in application logs after a query containing all three | 0 occurrences each; `[MASKED_SSN_1] [MASKED_CARD_1] [MASKED_EMAIL_1]` retained for traceability |
+| `telemetry_logs.query_text` at rest | Base64 ciphertext |
+| Test suite | 17 tests, 0 failures, 0 errors (6 new auth tests, 1 new PII test, 10 pre-existing) |
+| `symphony-ui` production build | Succeeds; lint clean apart from one pre-existing `exhaustive-deps` warning |
+
+### 6.2 End to end, after all phases:
 
 1. **Negative startup:** with no environment variables, `./gradlew bootRun` aborts and names each unsatisfied invariant. This is the single most important check in the plan — it is what converts all six silent failures into loud ones.
 2. **Auth:** correct password returns a token whose `roles` claim equals `users.role_flag`; wrong password and unknown username both return 401 with no token; a body-supplied `role: "ADMIN"` is ignored; a `/supervisor/chat` request with spoofed `X-User-Role` and no JWT returns 401.
@@ -203,6 +232,14 @@ Phases are independently revertable and ordered so that reverting a later phase 
 | 2026-10-13 | Deleting the `X-User-*` header fallback despite it being currently unreachable | `SecurityConfig` makes it dead code today, but it is a full identity-spoofing bypass one configuration edit away from live, and it contradicts `docs/SECURITY-AND-ACCESS.md` §2 |
 | 2026-10-13 | Full OIDC deferred to plan 0008 | Phase 2 makes the existing endpoint sound. OIDC additionally requires identity-provider registration and redirect-URI decisions that are organisational rather than technical, and bundling them would stall the security fix |
 | 2026-10-13 | Auth (Phase 2) ordered before the vault (Phase 4) despite the vault being the larger piece | B1 is the most severe blocker and does not depend on vault work, so it should not wait behind it |
+| 2026-10-13 | Phase 2 adds migration `V6`, contradicting this plan's "no schema change beyond one seed correction" | Removing the caller-supplied role exposed a gap the audit had missed: `users.role_flag` is constrained to `ADMIN`/`CREATOR`/`USER`, but `agents.authorized_roles` holds corporate roles such as `HR` and `Admin`. These are the two separate layers described in `docs/SECURITY-AND-ACCESS.md` section 2, and the database had a column for only the first. Deriving the `roles` claim from `role_flag` would have silently broken agent RBAC for every restricted agent, so `users.corporate_roles` was added as the missing source of truth |
+| 2026-10-13 | `isRbacBlocked` widened to intersect the user's full role set, beyond Phase 2's stated scope | `corporate_roles` holds several roles per user, while the check compared one string. Left alone, a user whose matching role was not first in their list would be wrongly refused — a bug this phase would have introduced. The method is six lines and the fix is confined to it |
+| 2026-10-13 | `MockModeProperties` landed in Phase 2 rather than Phase 1 | Seeding development accounts must not happen in production, so `DatabaseInitializer` needed the flag. The class is the first file of Phase 1; `ConfigurationGuard` still belongs to that phase |
+| 2026-10-13 | Three seeded development accounts instead of one | The UI's role `<select>` was how RBAC was demonstrated, and it is gone. Accounts spanning both role layers (`shubham` Admin+HR, `hr.specialist` HR, `employee` Employee) keep that behaviour exercisable by signing in as different users, which is also how a real deployment behaves |
+| 2026-10-13 | Phase 3's log-line fix applied during Phase 2 | Both edits land in the same method of `SupervisorController`; splitting them would have meant touching the file twice for no reviewability gain. Phase 3 retains the regression test |
+| 2026-10-13 | Work committed on `feature/0007-production-hardening` rather than `main` | Earlier plans committed straight to `main`. This one changes the authentication path, so it is worth keeping reviewable in isolation; the header's Branch field was updated to match |
+| 2026-10-13 | Added an `HttpStatusEntryPoint` returning 401 | End-to-end verification showed an unauthenticated request to `/supervisor/chat` was rejected with 403. The rejection was correct, but a request carrying no credentials should answer 401 so a client knows to sign in — and 401 is what this plan's verification section specifies |
+| 2026-10-13 | Phase 2 verified against a disposable `pgvector/pgvector:pg17` container named `symphony-postgres` | The suite and the application both need PostgreSQL with pgvector, and none was running locally. The container is local and disposable; it is not a project dependency and is not referenced by any committed file |
 
 ## 9. Commits / PR
 

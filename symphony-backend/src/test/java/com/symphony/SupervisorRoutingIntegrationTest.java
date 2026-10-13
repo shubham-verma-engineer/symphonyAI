@@ -73,13 +73,13 @@ public class SupervisorRoutingIntegrationTest {
         assertNotNull(agentService.onboardAgent(manifest, wsId, userId));
 
         // 2. Query the supervisor with a matching request
-        SupervisorResponseDto matchResp = supervisorService.routeAndExecute(wsId, userId, "Employee", "Please run summary over document");
+        SupervisorResponseDto matchResp = supervisorService.routeAndExecute(wsId, userId, List.of("Employee"), "Employee", "Please run summary over document");
         assertEquals("failed", matchResp.getStatus());
         assertEquals("test-summarizer", matchResp.getMatchedAgent());
         assertTrue(matchResp.getExtractedParameters().containsKey("documentUrl"));
 
         // 3. Query the supervisor with an UNMATCHED request
-        SupervisorResponseDto noMatchResp = supervisorService.routeAndExecute(wsId, userId, "Employee", "I need to fly on an airplane");
+        SupervisorResponseDto noMatchResp = supervisorService.routeAndExecute(wsId, userId, List.of("Employee"), "Employee", "I need to fly on an airplane");
         assertEquals("no_match", noMatchResp.getStatus());
         assertNull(noMatchResp.getMatchedAgent());
 

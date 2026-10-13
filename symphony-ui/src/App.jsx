@@ -28,9 +28,24 @@ const ChartIcon = () => (
 function App() {
   const [view, setView] = useState('marketplace'); // 'marketplace' | 'onboard' | 'chat' | 'analytics'
   const [theme, setTheme] = useState(() => localStorage.getItem('symphony-theme') || 'dark');
-  const [userRole, setUserRole] = useState(() => localStorage.getItem('symphony-role') || 'Employee');
+  // Identity is whatever the server said when it authenticated us. The UI used
+  // to hold a role dropdown that re-requested a token for the chosen role; the
+  // login endpoint no longer accepts a caller-supplied role, so roles are read
+  // from the session and are not user-editable.
   const [token, setToken] = useState(() => localStorage.getItem('symphony-jwt') || '');
+  const [identity, setIdentity] = useState(() => {
+    try {
+      const stored = localStorage.getItem('symphony-identity');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
   const [workspaceName, setWorkspaceName] = useState(() => localStorage.getItem('symphony-workspace-name') || 'default_ws');
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [loginError, setLoginError] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
+
   
   const [agents, setAgents] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -85,30 +100,63 @@ function App() {
     localStorage.setItem('symphony-theme', theme);
   }, [theme]);
 
-  // Sync userRole and fetch matching JWT session token
-  useEffect(() => {
-    localStorage.setItem('symphony-role', userRole);
-    const fetchToken = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: 'shubham', role: userRole })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setToken(data.token);
-          setWorkspaceName(data.workspaceName || 'default_ws');
-          localStorage.setItem('symphony-jwt', data.token);
-          localStorage.setItem('symphony-workspace-name', data.workspaceName || 'default_ws');
-          console.log(`Successfully obtained JWT for role: ${userRole}`);
-        }
-      } catch (err) {
-        console.error("Failed to authenticate SSO", err);
+  const handleLogout = () => {
+    setToken('');
+    setIdentity(null);
+    setLoginForm({ username: '', password: '' });
+    localStorage.removeItem('symphony-jwt');
+    localStorage.removeItem('symphony-identity');
+    localStorage.removeItem('symphony-workspace-name');
+  };
+
+  const handleLogin = async (e) => {
+    if (e) e.preventDefault();
+    if (!loginForm.username || !loginForm.password) {
+      setLoginError('Enter both a username and a password.');
+      return;
+    }
+
+    setLoggingIn(true);
+    setLoginError('');
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: loginForm.username, password: loginForm.password })
+      });
+
+      if (res.status === 401) {
+        setLoginError('Invalid username or password.');
+        return;
       }
-    };
-    fetchToken();
-  }, [userRole]);
+      if (!res.ok) {
+        setLoginError('Sign-in failed. Please try again.');
+        return;
+      }
+
+      const data = await res.json();
+      const nextIdentity = {
+        username: data.username,
+        roles: data.roles || [],
+        platformRole: data.platformRole,
+        workspaceRole: data.workspaceRole
+      };
+
+      setToken(data.token);
+      setIdentity(nextIdentity);
+      setWorkspaceName(data.workspaceName || 'default_ws');
+      setLoginForm({ username: '', password: '' });
+
+      localStorage.setItem('symphony-jwt', data.token);
+      localStorage.setItem('symphony-identity', JSON.stringify(nextIdentity));
+      localStorage.setItem('symphony-workspace-name', data.workspaceName || 'default_ws');
+    } catch (err) {
+      console.error('Failed to authenticate', err);
+      setLoginError('Could not reach the authentication service.');
+    } finally {
+      setLoggingIn(false);
+    }
+  };
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
@@ -321,6 +369,58 @@ function App() {
       ? parseFloat(totalBillingCost / billingAudit.length).toFixed(6) 
       : "0.000000";
 
+  // Unauthenticated: the app renders nothing but the sign-in form. Previously a
+  // token was fetched automatically on mount, so there was no signed-out state.
+  if (!token) {
+    return (
+      <div className="login-shell">
+        <form className="premium-card login-card" onSubmit={handleLogin}>
+          <div className="brand-wrapper" style={{ marginBottom: '1.5rem', justifyContent: 'center' }}>
+            <img src="/logo.jpg" alt="SymphonyAI Logo" style={{ width: '28px', height: '28px', borderRadius: 'var(--radius-md)', objectFit: 'cover' }} />
+            <span className="brand-title premium-gradient-text">SymphonyAI</span>
+          </div>
+
+          <h1 className="page-title premium-gradient-text" style={{ fontSize: '1.5rem', textAlign: 'center' }}>Sign in</h1>
+          <p className="page-desc" style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
+            Authenticate to access the enterprise agent registry.
+          </p>
+
+          <div className="form-group">
+            <label htmlFor="login-username">Username</label>
+            <input
+              id="login-username"
+              className="form-control"
+              type="text"
+              autoComplete="username"
+              value={loginForm.username}
+              onChange={e => setLoginForm({ ...loginForm, username: e.target.value })}
+              disabled={loggingIn}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="login-password">Password</label>
+            <input
+              id="login-password"
+              className="form-control"
+              type="password"
+              autoComplete="current-password"
+              value={loginForm.password}
+              onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
+              disabled={loggingIn}
+            />
+          </div>
+
+          {loginError && <p className="login-error" role="alert">{loginError}</p>}
+
+          <button className="btn btn-primary login-submit" type="submit" disabled={loggingIn}>
+            {loggingIn ? 'Signing in...' : 'Sign in'}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
       {/* Structural Persistent Left Sidebar */}
@@ -374,13 +474,11 @@ function App() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-            {/* User SSO Role */}
-            <div className="role-selector-wrapper">
-              <select value={userRole} onChange={e => setUserRole(e.target.value)}>
-                <option value="Employee">Employee (Standard)</option>
-                <option value="HR">HR Specialist</option>
-                <option value="Admin">Administrator</option>
-              </select>
+            {/* Resolved session identity. Read-only: roles come from the
+                directory, so they cannot be switched from the client. */}
+            <div className="identity-pill" title={`Platform role: ${identity?.platformRole || '—'}`}>
+              <span className="identity-roles">{(identity?.roles || []).join(', ') || 'No corporate roles'}</span>
+              <span className="identity-platform">{identity?.platformRole || '—'}</span>
             </div>
 
             {/* Theme Toggle Button */}
@@ -388,7 +486,11 @@ function App() {
               {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
             </button>
 
-            <span style={{ fontSize: '0.85rem', fontWeight: '500', color: 'var(--text-secondary)' }}>shubham</span>
+            <span style={{ fontSize: '0.85rem', fontWeight: '500', color: 'var(--text-secondary)' }}>
+              {identity?.username || 'unknown'}
+            </span>
+
+            <button className="btn" onClick={handleLogout} title="Sign out">Sign out</button>
           </div>
         </header>
 

@@ -23,12 +23,23 @@ public class JwtUtils {
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(UUID userId, String username, String email, String role, UUID workspaceId, String workspaceRole) {
+    /**
+     * Mints a session token for an already-authenticated user.
+     *
+     * <p>Both role layers are carried, and both are read from the database by
+     * the caller — never from the login request. {@code roles} holds the
+     * corporate (SSO) roles that agent RBAC is evaluated against;
+     * {@code platform_role} holds the registry-scope role from
+     * {@code users.role_flag}. See {@code docs/SECURITY-AND-ACCESS.md} section 2.
+     */
+    public String generateToken(UUID userId, String username, String email, List<String> corporateRoles,
+                                String platformRole, UUID workspaceId, String workspaceRole) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("name", username);
         claims.put("email", email);
-        claims.put("roles", List.of(role));
-        
+        claims.put("roles", corporateRoles == null ? List.of() : List.copyOf(corporateRoles));
+        claims.put("platform_role", platformRole);
+
         Map<String, Object> ws = new HashMap<>();
         ws.put("workspace_id", workspaceId.toString());
         ws.put("membership_role", workspaceRole);

@@ -61,7 +61,7 @@ public class BillingAllocationIntegrationTest {
     @Test
     public void testDepartmentBillingAndDynamicCostSimulation() {
         // 1. Simulate Single Routed query for HR
-        supervisorService.routeAndExecute(wsId, userId, "HR", "billing-agent-1 payroll query");
+        supervisorService.routeAndExecute(wsId, userId, List.of("HR"), "HR", "billing-agent-1 payroll query");
 
         // 2. Fetch raw audit logs
         List<TelemetryLog> logs = telemetryService.getRawTelemetryLogs(wsId);
