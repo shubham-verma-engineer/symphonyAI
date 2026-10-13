@@ -132,19 +132,29 @@ Phase 1 is the configuration spine every later phase asserts against, so it land
   | `symphony-backend/src/test/resources/application.yml` | Pins the suite to the local provider; the contract test builds its own Vault-backed instance (modified) |
   | `symphony-backend/src/test/java/com/symphony/SecretsVaultContractTest.java` | One abstract contract satisfied by both implementations, so they cannot drift. The Vault-backed nest skips via an assumption when no Vault is reachable, which is visible in the report (new) |
 
-### Phase 5 — Honest health probes and real signing keys · Status: Pending
-- **Does:** Replaces URL substring-matching with the mock flag in both health checkers, and moves JWT signing to RS256 with vault-held keys and `kid`-based rotation.
-- **Verify:** With mock mode off, register an agent on a `localhost` health URL that returns 500 and confirm it is marked `UNHEALTHY` — today it is marked `ACTIVE` unprobed. Confirm a token signed with a rotated-out key still verifies inside the overlap window and is rejected after it. Confirm a token signed with the old committed HS256 secret is rejected outright.
+### Phase 5 — Honest health probes and real signing keys · Status: Done
+- **Does:** Replaces URL substring-matching in both health checkers with an explicit setting, and moves JWT signing to RS256 with vault-held keys and `kid`-based rotation.
+- **Verify:** A `localhost` health endpoint returning 503 is marked `UNHEALTHY` rather than assumed `ACTIVE`. A rotated-out key still verifies inside the overlap window and is refused after it. A token signed with the old committed HS256 secret is refused.
 - **Changed files:**
 
   | File | Brief |
   |---|---|
-  | `symphony-backend/src/main/java/com/symphony/service/AgentService.java` | Line 198: probe unless mock mode is on; drop the `mock`/`localhost`/`127.0.0.1` substring test (modified) |
-  | `symphony-backend/src/main/java/com/symphony/service/AgentHeartbeatService.java` | Line 37: same substitution for the scheduled checker (modified) |
-  | `symphony-backend/src/main/java/com/symphony/config/JwtUtils.java` | RS256 signing, `kid` header, verify against the active key set, keep a rotated-out key valid for 24h (modified) |
-  | `symphony-backend/src/main/java/com/symphony/config/JwtKeyProvider.java` | Loads the RSA keypair from the vault in production; generates an ephemeral keypair at boot in mock mode (new) |
-  | `symphony-backend/src/main/resources/application.yml` | Replace `symphony.jwt.secret` with vault-sourced key configuration; no committed key material remains (modified) |
-  | `symphony-backend/src/test/java/com/symphony/JwtRotationTest.java` | Covers sign/verify, `kid` selection, overlap-window acceptance, post-overlap rejection, and legacy-HS256 rejection (new) |
+  | `symphony-backend/src/main/java/com/symphony/config/jwt/JwtKeyRing.java` | Immutable active + retired key set; `kid` lookup honouring the overlap window; `rotateTo` prunes keys whose window has closed (new) |
+  | `symphony-backend/src/main/java/com/symphony/config/jwt/JwtKeyProvider.java` | Generates RSA keys, selects the signing key, resolves a `kid` to a verification key, and performs rotation (new) |
+  | `symphony-backend/src/main/java/com/symphony/config/jwt/JwtKeyStore.java` | Persistence seam, with `isDurable()` so the guard can refuse an ephemeral store in production (new) |
+  | `symphony-backend/src/main/java/com/symphony/config/jwt/VaultJwtKeyStore.java` | Stores the ring as one JSON document in Vault KV v2, so a write is atomic and replicas share a ring. Refuses to start rather than generating a fresh key if Vault cannot be read, which would silently invalidate every issued token (new) |
+  | `symphony-backend/src/main/java/com/symphony/config/jwt/InMemoryJwtKeyStore.java` | Ephemeral store for local runs, so no key material is committed (new) |
+  | `symphony-backend/src/main/java/com/symphony/config/JwtKeyConfig.java` | Selects the key store, following the vault provider rather than mock mode (new) |
+  | `symphony-backend/src/main/java/com/symphony/config/JwtUtils.java` | RS256 signing with a `kid` header; verification resolves the key from the `kid` and refuses a token that carries none — which is what rejects anything signed with the old symmetric secret (modified) |
+  | `symphony-backend/src/main/java/com/symphony/config/ConfigurationGuard.java` | The committed-secret invariant is replaced by one that refuses an ephemeral JWT key store in production (modified) |
+  | `symphony-backend/src/main/java/com/symphony/config/VaultProviderConfig.java` | `VaultTemplate` promoted to a lazy bean, shared with the JWT key store (modified) |
+  | `symphony-backend/src/main/java/com/symphony/service/AgentService.java` | Health probe gated on mock mode instead of substring-matching the URL (modified) |
+  | `symphony-backend/src/main/java/com/symphony/service/AgentHeartbeatService.java` | Rewritten: probes every agent, `symphony.heartbeat.assume-healthy` replaces the URL bypass, statuses are written only on transition with the cause logged, and the per-sweep line moved to DEBUG with an early return when there is nothing to check (modified) |
+  | `symphony-backend/src/main/resources/application.yml` | `symphony.jwt.secret` removed entirely; rotation period, overlap and keyring path added, plus the heartbeat settings (modified) |
+  | `symphony-backend/src/test/resources/application.yml` | JWT secret removed (modified) |
+  | `symphony-backend/src/test/java/com/symphony/JwtRotationTest.java` | 10 tests on a movable clock: `kid` generation, overlap acceptance at the boundary, post-overlap refusal, unknown `kid`, legacy HS256 refusal, foreign-RSA refusal, retired-key pruning, and that a retired key keeps no private key (new) |
+  | `symphony-backend/src/test/java/com/symphony/AgentHeartbeatIntegrationTest.java` | Rewritten against a local stub HTTP server on an ephemeral port: healthy, 503, unreachable, recovery, no-health-URL, and a regression test that a failing `localhost` endpoint is no longer assumed healthy (modified) |
+  | `symphony-backend/src/test/java/com/symphony/ConfigurationGuardTest.java` | JWT invariant tests updated for the key-store check (modified) |
 
 ### Phase 6 — Remove mock branching from service logic, enable the guard, update docs · Status: Pending
 - **Does:** Replaces the remaining `"mock-key"` string comparisons with the injected flag, turns the guard on by default, and brings the docs into line.
@@ -228,6 +238,21 @@ Against `hashicorp/vault:1.17` in dev mode on `localhost:8200`.
 | Unrecognised `symphony.vault.provider` | Startup fails naming the accepted values |
 | Test suite | 45 tests, 0 failures, 0 errors, 0 skipped — including 18 contract tests across both implementations |
 
+### 6.1d Verified for Phase 5 (2026-10-13)
+
+| Check | Result |
+|---|---|
+| Token header on a fresh login | `{"kid":"df244b13-…","alg":"RS256"}` — asymmetric, with a key id |
+| Key ring persistence | Written to Vault at `secret/symphony/jwt/keyring`; the next boot logs `Loaded JWT key ring (active kid=df244b13-…)` |
+| **A token issued before a restart, used after it** | `200` — previously every restart invalidated all tokens |
+| Token with an unknown `kid` | `401` |
+| Token signed with the previously committed HS256 secret, claiming `ADMIN` | `401` |
+| Private key material in application logs | 0 occurrences |
+| Guard with `symphony.vault.provider=local` in production mode | Refuses to start, naming both the ephemeral JWT store and the non-durable secrets vault |
+| Heartbeat log lines over ~2 minutes of idle uptime | 0 (was 4 at INFO, one every 30s) |
+| `localhost` health endpoint returning 503 | `UNHEALTHY` — previously assumed `ACTIVE` without a request |
+| Test suite | 59 tests, 0 failures, 0 skipped |
+
 ### 6.2 End to end, after all phases:
 
 1. **Negative startup:** with no environment variables, `./gradlew bootRun` aborts and names each unsatisfied invariant. This is the single most important check in the plan — it is what converts all six silent failures into loud ones.
@@ -276,6 +301,11 @@ Phases are independently revertable and ordered so that reverting a later phase 
 | 2026-10-13 | Stored URIs carry the mount (`vault://secret/…`), unlike the in-memory form (`vault:/…`) | Recording the mount means changing `symphony.vault.kv-mount` cannot silently redirect reads for existing rows. It also makes legacy in-memory URIs identifiable rather than indistinguishable, which is what lets `AgentService` report them instead of guessing |
 | 2026-10-13 | `AgentService` reads a credential back at onboarding time | Previously a credential that failed to persist surfaced only when the Supervisor dispatched and the agent answered 401 — far from the cause, and indistinguishable from the agent rejecting a valid token, while the registry still showed `ACTIVE`. Reading back at registration moves the error to the moment it is caused |
 | 2026-10-13 | Production mode is now satisfiable | Verified: with a durable vault and non-default key material, the guard passes and the application starts. Phase 4 closed the last invariant that could not be met |
+| 2026-10-13 | Automated rotation cadence deliberately not implemented; `rotate()` is exposed instead | Every replica runs its own scheduler, so a timed rotation across more than one instance would race and leave replicas signing with different active keys. That needs a distributed lock — the same gap the heartbeat has — and it is a scheduling concern, not a cryptographic one. The mechanism and the overlap behaviour are implemented and tested, so the 90-day policy is now backed by something rather than merely stated |
+| 2026-10-13 | `symphony.heartbeat.assume-healthy` added rather than reusing mock mode | Same reasoning as the vault provider: whether agents are reachable is independent of whether the LLM is faked. Needed concretely — the heartbeat test cannot exercise the real probe path if probing is suppressed by the flag the whole suite runs under. Defaults to mock mode, so local behaviour is unchanged |
+| 2026-10-13 | `AgentHeartbeatIntegrationTest` rewritten rather than adjusted | Its "local agent is ACTIVE" assertion passed only because the old code skipped any `localhost` URL unprobed; the endpoint it pointed at (`/actuator/health`) does not exist in this application, and no actuator dependency is present. The test would have passed whether or not the probe worked. It now runs against a stub HTTP server it starts on an ephemeral port, so every assertion follows from a real request |
+| 2026-10-13 | `VaultJwtKeyStore` fails the boot when Vault cannot be read | Generating a fresh ring on a read failure would sign every user out and mask a Vault outage or a permissions error as a routine restart |
+| 2026-10-13 | `VaultTemplate` promoted to a `@Lazy` bean | Both the secrets vault and the JWT key store need one. Lazy means a local run never constructs a Vault client, so a missing `VAULT_URI` is only an error for a deployment that actually needs one |
 
 ## 9. Commits / PR
 

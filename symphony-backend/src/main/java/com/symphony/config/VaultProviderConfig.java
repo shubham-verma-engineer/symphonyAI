@@ -4,9 +4,11 @@ import com.symphony.service.HashiCorpSecretsVaultService;
 import com.symphony.service.LocalSecretsVaultService;
 import com.symphony.service.SecretsVaultService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.vault.authentication.TokenAuthentication;
 import org.springframework.vault.client.VaultEndpoint;
 import org.springframework.vault.core.VaultTemplate;
@@ -40,9 +42,8 @@ public class VaultProviderConfig {
     @Bean
     public SecretsVaultService secretsVaultService(
             MockModeProperties mockMode,
+            ObjectProvider<VaultTemplate> vaultTemplateProvider,
             @Value("${symphony.vault.provider:}") String configuredProvider,
-            @Value("${symphony.vault.uri:}") String vaultUri,
-            @Value("${symphony.vault.token:}") String vaultToken,
             @Value("${symphony.vault.kv-mount:secret}") String kvMount,
             @Value("${symphony.vault.encryption-key:}") String encryptionKey) {
 
@@ -54,7 +55,21 @@ public class VaultProviderConfig {
         }
 
         log.info("Secrets vault provider: hashicorp (durable, KV v2 mount '{}')", kvMount);
-        return new HashiCorpSecretsVaultService(vaultTemplate(vaultUri, vaultToken), kvMount);
+        return new HashiCorpSecretsVaultService(vaultTemplateProvider.getObject(), kvMount);
+    }
+
+    /**
+     * Lazy so that a local run never builds a Vault client, and so a missing
+     * {@code VAULT_URI} is only an error for a deployment that actually needs
+     * one. Shared by {@link JwtKeyConfig}, which stores signing keys in the same
+     * Vault.
+     */
+    @Bean
+    @Lazy
+    public VaultTemplate vaultTemplate(
+            @Value("${symphony.vault.uri:}") String vaultUri,
+            @Value("${symphony.vault.token:}") String vaultToken) {
+        return buildVaultTemplate(vaultUri, vaultToken);
     }
 
     /**
@@ -76,7 +91,7 @@ public class VaultProviderConfig {
         return mockEnabled ? PROVIDER_LOCAL : PROVIDER_HASHICORP;
     }
 
-    private VaultTemplate vaultTemplate(String vaultUri, String vaultToken) {
+    private VaultTemplate buildVaultTemplate(String vaultUri, String vaultToken) {
         if (vaultUri == null || vaultUri.isBlank()) {
             throw new IllegalStateException(
                     "symphony.vault.uri is not set. Set VAULT_URI to a reachable Vault "

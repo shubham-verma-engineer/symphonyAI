@@ -1,5 +1,6 @@
 package com.symphony.config;
 
+import com.symphony.config.jwt.JwtKeyStore;
 import com.symphony.service.SecretsVaultService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,14 +34,6 @@ import java.util.List;
 @Slf4j
 public class ConfigurationGuard implements ApplicationRunner {
 
-    /**
-     * The JWT signing key committed to {@code application.yml}. HS256 is
-     * symmetric, so anyone with repository access can mint tokens for any user,
-     * role and workspace while this value is in use.
-     */
-    static final String KNOWN_DEFAULT_JWT_SECRET =
-            "dGhpcy1pcy1hLXNlY3JldC1rZXktZm9yLXN5bXBob255LWFpLWp3dC10b2tlbi1nZW5lcmF0aW9uLXdpdGgtMzItYnl0ZXM=";
-
     /** The development vault key hardcoded in {@code LocalSecretsVaultService}. */
     static final String KNOWN_DEFAULT_VAULT_KEY = "this-is-a-32-byte-encryption-key-for-local-vault";
 
@@ -49,19 +42,19 @@ public class ConfigurationGuard implements ApplicationRunner {
 
     private final MockModeProperties mockMode;
     private final SecretsVaultService secretsVaultService;
+    private final JwtKeyStore jwtKeyStore;
 
     @Value("${openai.api-key:}")
     private String openAiApiKey;
 
-    @Value("${symphony.jwt.secret:}")
-    private String jwtSecret;
-
     @Value("${symphony.vault.encryption-key:" + KNOWN_DEFAULT_VAULT_KEY + "}")
     private String vaultEncryptionKey;
 
-    public ConfigurationGuard(MockModeProperties mockMode, SecretsVaultService secretsVaultService) {
+    public ConfigurationGuard(MockModeProperties mockMode, SecretsVaultService secretsVaultService,
+                              JwtKeyStore jwtKeyStore) {
         this.mockMode = mockMode;
         this.secretsVaultService = secretsVaultService;
+        this.jwtKeyStore = jwtKeyStore;
     }
 
     @Override
@@ -72,7 +65,7 @@ public class ConfigurationGuard implements ApplicationRunner {
         }
 
         List<String> violations = findViolations(
-                openAiApiKey, jwtSecret, vaultEncryptionKey, secretsVaultService.isDurable());
+                openAiApiKey, vaultEncryptionKey, secretsVaultService.isDurable(), jwtKeyStore.isDurable());
 
         if (!violations.isEmpty()) {
             StringBuilder message = new StringBuilder(
@@ -102,8 +95,8 @@ public class ConfigurationGuard implements ApplicationRunner {
      * guard that blocks a deployment without saying why gets disabled rather
      * than fixed.
      */
-    static List<String> findViolations(String openAiApiKey, String jwtSecret, String vaultEncryptionKey,
-                                       boolean vaultIsDurable) {
+    static List<String> findViolations(String openAiApiKey, String vaultEncryptionKey,
+                                       boolean vaultIsDurable, boolean jwtKeyStoreIsDurable) {
         List<String> violations = new ArrayList<>();
 
         if (isBlank(openAiApiKey)) {
@@ -116,13 +109,11 @@ public class ConfigurationGuard implements ApplicationRunner {
                     + "Set OPENAI_API_KEY to a real key.");
         }
 
-        if (isBlank(jwtSecret)) {
-            violations.add("symphony.jwt.secret is not set. Set JWT_SECRET to key material held outside "
-                    + "this repository.");
-        } else if (KNOWN_DEFAULT_JWT_SECRET.equals(jwtSecret.trim())) {
-            violations.add("symphony.jwt.secret is the default value committed to application.yml. "
-                    + "HS256 is symmetric, so anyone with repository access can mint a token for any user, "
-                    + "role and workspace. Set JWT_SECRET to key material held outside this repository.");
+        if (!jwtKeyStoreIsDurable) {
+            violations.add("JWT signing keys are held in an ephemeral in-memory store, so every restart "
+                    + "would invalidate all issued tokens and sign every user out. Point "
+                    + "symphony.vault.provider at hashicorp so the key ring is persisted and shared "
+                    + "across replicas.");
         }
 
         if (isBlank(vaultEncryptionKey) || KNOWN_DEFAULT_VAULT_KEY.equals(vaultEncryptionKey.trim())) {
@@ -134,8 +125,8 @@ public class ConfigurationGuard implements ApplicationRunner {
         if (!vaultIsDurable) {
             violations.add("The active SecretsVaultService does not survive a restart. Agent credentials "
                     + "would be lost while the agents.credential_vault_uri rows pointing at them persist, "
-                    + "leaving dangling references. A durable, KMS-backed implementation is phase 4 of "
-                    + "plan 0007 and is not yet available, so production mode cannot currently be satisfied.");
+                    + "leaving dangling references. Set symphony.vault.provider=hashicorp and supply "
+                    + "VAULT_URI and VAULT_TOKEN.");
         }
 
         return violations;

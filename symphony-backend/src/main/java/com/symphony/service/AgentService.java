@@ -1,5 +1,6 @@
 package com.symphony.service;
 
+import com.symphony.config.MockModeProperties;
 import com.symphony.dto.AgentManifestDto;
 import com.symphony.dto.AgentParameterDto;
 import com.symphony.dto.AgentSearchMatchDto;
@@ -30,6 +31,7 @@ public class AgentService {
     private final AgentParameterRepository parameterRepository;
     private final OpenAiEmbeddingClient embeddingClient;
     private final SecretsVaultService secretsVaultService;
+    private final MockModeProperties mockMode;
 
     private final OkHttpClient httpClient = new OkHttpClient.Builder()
             .connectTimeout(Duration.ofSeconds(3))
@@ -226,9 +228,22 @@ public class AgentService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Probes an agent's health endpoint, rejecting the registration if it fails.
+     *
+     * <p>The probe used to be skipped for any URL containing {@code mock},
+     * {@code localhost} or {@code 127.0.0.1}. That inference is wrong in exactly
+     * the topologies this platform targets: behind a Kubernetes sidecar or in
+     * Docker Compose, real agents legitimately answer on localhost, so the
+     * registry accepted them without ever making a request. Mock mode is now
+     * asked explicitly.
+     */
     private void pingHealthEndpoint(String healthUrl) {
-        if (healthUrl == null || healthUrl.toLowerCase().contains("mock") || healthUrl.toLowerCase().contains("localhost") || healthUrl.toLowerCase().contains("127.0.0.1")) {
-            log.info("Skipping health check ping for mock or local endpoint: {}", healthUrl);
+        if (healthUrl == null) {
+            return;
+        }
+        if (mockMode.isEnabled()) {
+            log.info("Mock mode: skipping health probe for {}", healthUrl);
             return;
         }
         log.info("Pinging health check endpoint: {}", healthUrl);

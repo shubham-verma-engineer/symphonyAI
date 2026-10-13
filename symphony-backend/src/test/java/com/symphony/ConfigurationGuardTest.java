@@ -24,20 +24,17 @@ import static org.junit.jupiter.api.Assertions.*;
 public class ConfigurationGuardTest {
 
     private static final String REAL_KEY = "sk-proj-a-real-looking-api-key";
-    private static final String REAL_JWT = "YW5vdGhlci1zZWNyZXQta2V5LXRoYXQtaXMtbm90LXRoZS1jb21taXR0ZWQtZGVmYXVsdA==";
     private static final String REAL_VAULT_KEY = "a-key-supplied-by-the-environment";
-
-    private static final String COMMITTED_JWT_DEFAULT =
-            "dGhpcy1pcy1hLXNlY3JldC1rZXktZm9yLXN5bXBob255LWFpLWp3dC10b2tlbi1nZW5lcmF0aW9uLXdpdGgtMzItYnl0ZXM=";
     private static final String HARDCODED_VAULT_DEFAULT = "this-is-a-32-byte-encryption-key-for-local-vault";
 
     @SuppressWarnings("unchecked")
-    private static List<String> violations(String apiKey, String jwt, String vaultKey, boolean durable) {
+    private static List<String> violations(String apiKey, String vaultKey, boolean vaultDurable,
+                                           boolean jwtStoreDurable) {
         try {
             Method m = ConfigurationGuard.class.getDeclaredMethod(
-                    "findViolations", String.class, String.class, String.class, boolean.class);
+                    "findViolations", String.class, String.class, boolean.class, boolean.class);
             m.setAccessible(true);
-            return (List<String>) m.invoke(null, apiKey, jwt, vaultKey, durable);
+            return (List<String>) m.invoke(null, apiKey, vaultKey, vaultDurable, jwtStoreDurable);
         } catch (ReflectiveOperationException e) {
             throw new AssertionError("findViolations is not reachable with the expected signature", e);
         }
@@ -45,14 +42,14 @@ public class ConfigurationGuardTest {
 
     @Test
     void fullyConfiguredProductionSetupPasses() {
-        assertTrue(violations(REAL_KEY, REAL_JWT, REAL_VAULT_KEY, true).isEmpty(),
+        assertTrue(violations(REAL_KEY, REAL_VAULT_KEY, true, true).isEmpty(),
                 "A complete production configuration should produce no violations");
     }
 
     @Test
     void missingOpenAiKeyIsRejected() {
         for (String absent : new String[]{null, "", "   "}) {
-            List<String> v = violations(absent, REAL_JWT, REAL_VAULT_KEY, true);
+            List<String> v = violations(absent, REAL_VAULT_KEY, true, true);
             assertEquals(1, v.size(), "Expected exactly one violation for key: " + absent);
             assertTrue(v.get(0).contains("openai.api-key"), v.get(0));
         }
@@ -60,7 +57,7 @@ public class ConfigurationGuardTest {
 
     @Test
     void literalMockKeyIsRejectedAndExplainsWhy() {
-        List<String> v = violations("mock-key", REAL_JWT, REAL_VAULT_KEY, true);
+        List<String> v = violations("mock-key", REAL_VAULT_KEY, true, true);
         assertEquals(1, v.size());
         // The message must say what the mock path actually does, since the
         // failure it prevents is silent and plausible-looking.
@@ -71,46 +68,43 @@ public class ConfigurationGuardTest {
     @Test
     void mockKeyIsRejectedRegardlessOfCaseOrSurroundingWhitespace() {
         for (String variant : new String[]{"MOCK-KEY", "Mock-Key", "  mock-key  "}) {
-            assertFalse(violations(variant, REAL_JWT, REAL_VAULT_KEY, true).isEmpty(),
+            assertFalse(violations(variant, REAL_VAULT_KEY, true, true).isEmpty(),
                     "Should have been rejected: '" + variant + "'");
         }
     }
 
     @Test
-    void committedJwtSecretIsRejected() {
-        List<String> v = violations(REAL_KEY, COMMITTED_JWT_DEFAULT, REAL_VAULT_KEY, true);
+    void ephemeralJwtKeyStoreIsRejected() {
+        // Phase 5 replaced the committed HS256 secret with generated RS256 keys,
+        // so the invariant is no longer "is this value the default" but "will
+        // these keys survive a restart".
+        List<String> v = violations(REAL_KEY, REAL_VAULT_KEY, true, false);
         assertEquals(1, v.size());
-        assertTrue(v.get(0).contains("symphony.jwt.secret"), v.get(0));
-        assertTrue(v.get(0).contains("symmetric"), "Should explain why a committed HS256 key matters: " + v.get(0));
-    }
-
-    @Test
-    void missingJwtSecretIsRejected() {
-        List<String> v = violations(REAL_KEY, null, REAL_VAULT_KEY, true);
-        assertEquals(1, v.size());
-        assertTrue(v.get(0).contains("JWT_SECRET"), v.get(0));
+        assertTrue(v.get(0).contains("JWT signing keys"), v.get(0));
+        assertTrue(v.get(0).contains("restart"), v.get(0));
     }
 
     @Test
     void hardcodedVaultKeyIsRejected() {
-        List<String> v = violations(REAL_KEY, REAL_JWT, HARDCODED_VAULT_DEFAULT, true);
+        List<String> v = violations(REAL_KEY, HARDCODED_VAULT_DEFAULT, true, true);
         assertEquals(1, v.size());
         assertTrue(v.get(0).contains("symphony.vault.encryption-key"), v.get(0));
     }
 
     @Test
     void nonDurableVaultIsRejected() {
-        List<String> v = violations(REAL_KEY, REAL_JWT, REAL_VAULT_KEY, false);
+        List<String> v = violations(REAL_KEY, REAL_VAULT_KEY, false, true);
         assertEquals(1, v.size());
         assertTrue(v.get(0).contains("restart"), v.get(0));
-        assertTrue(v.get(0).contains("phase 4"), "Should point at the work that fixes it: " + v.get(0));
+        assertTrue(v.get(0).contains("symphony.vault.provider"),
+                "Should name the setting that fixes it: " + v.get(0));
     }
 
     @Test
     void everyProblemIsReportedTogetherRatherThanOnePerRestart() {
         // A guard that surfaced one problem per boot would turn a single
         // misconfiguration into four deploy-and-retry cycles.
-        List<String> v = violations(null, COMMITTED_JWT_DEFAULT, HARDCODED_VAULT_DEFAULT, false);
+        List<String> v = violations(null, HARDCODED_VAULT_DEFAULT, false, false);
         assertEquals(4, v.size(), "Expected all four invariants to be reported at once, got: " + v);
     }
 
@@ -118,7 +112,7 @@ public class ConfigurationGuardTest {
     void everyViolationMessageNamesAPropertyOrEnvironmentVariable() {
         // A blocked deployment with no stated cause gets the guard disabled
         // rather than the configuration fixed.
-        for (String message : violations(null, null, null, false)) {
+        for (String message : violations(null, null, false, false)) {
             assertTrue(message.contains("symphony.") || message.contains("openai.")
                             || message.contains("OPENAI_API_KEY") || message.contains("JWT_SECRET")
                             || message.contains("SecretsVaultService"),
