@@ -115,7 +115,7 @@ cd symphony-ui && npm install && npm run dev
 cd symphony-backend && ./gradlew test
 ```
 
-The tests run in mock mode against the database above. The Vault-backed contract tests use a Vault at `localhost:8200` if one is reachable, and are skipped otherwise:
+The tests run in mock mode against the database above. The Vault-backed contract tests use a Vault at `localhost:8200` if one is reachable, and are skipped otherwise. [CI](.github/workflows/backend-tests.yml) runs the full suite against Postgres and Vault service containers on every pull request and every push to `main`, and fails if any test is skipped:
 
 ```bash
 docker run -d --name symphony-vault --cap-add=IPC_LOCK -e VAULT_DEV_ROOT_TOKEN_ID=symphony-dev-root-token -p 127.0.0.1:8200:8200 hashicorp/vault:1.17
