@@ -27,7 +27,10 @@ spring:
     baseline-on-migrate: true
 
 openai:
-  api-key: ${OPENAI_API_KEY:mock-key}
+  # No default. An absent key used to fall back to a sentinel value (mock-key)
+  # which silently switched routing and search onto seeded local fakes. Mocking
+  # is now chosen explicitly via symphony.mock.llm.
+  api-key: ${OPENAI_API_KEY:}
   embedding-model: text-embedding-3-small
 
 symphony:
@@ -36,6 +39,9 @@ symphony:
   # See docs/implementation-plans/0007-production-hardening-blockers.md.
   mock:
     enabled: ${SYMPHONY_MOCK_ENABLED:false}
+    # Leave unset to follow mock.enabled. Set false to run the rest of the
+    # platform offline against a real LLM (needs OPENAI_API_KEY).
+    llm: ${SYMPHONY_MOCK_LLM:}
 
   vault:
     # HashiCorp Vault connection, used outside mock mode. No usable defaults:

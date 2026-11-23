@@ -31,10 +31,9 @@ spring:
     baseline-on-migrate: true
 
 openai:
-  # Still the literal "mock-key" because the service-layer mock branching is
-  # keyed off this value until Phase 6 of plan 0007 moves it onto
-  # symphony.mock.enabled. Once that lands, this can become any placeholder.
-  api-key: mock-key
+  # Never sent anywhere: mock mode is on, so symphony.mock.llm follows it and
+  # every LLM call uses the local stand-ins.
+  api-key: test-placeholder-not-used
   embedding-model: text-embedding-3-small
 
 symphony:

@@ -1,5 +1,6 @@
 package com.symphony.service;
 
+import com.symphony.config.MockModeProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -27,8 +28,9 @@ public class SupervisorService {
     private final AgentService agentService;
     private final TelemetryService telemetryService;
     private final SecretsVaultService secretsVaultService;
+    private final MockModeProperties mockMode;
 
-    @Value("${openai.api-key:mock-key}")
+    @Value("${openai.api-key:}")
     private String apiKey;
 
     @Value("${openai.base-url:https://api.openai.com}")
@@ -196,7 +198,7 @@ public class SupervisorService {
                                 lastOutput = nodeOutput;
                                 steps.add(String.format("Executed '%s' -> responded successfully with HTTP %d", node.agentName, httpStatus));
                             } else {
-                                if ("mock-key".equalsIgnoreCase(apiKey)) {
+                                if (mockMode.isEnabled()) {
                                     node.status = "COMPLETED";
                                     node.output = nodeOutput;
                                     lastOutput = nodeOutput;
@@ -208,7 +210,7 @@ public class SupervisorService {
                                 }
                             }
                         } catch (IOException e) {
-                            if ("mock-key".equalsIgnoreCase(apiKey)) {
+                            if (mockMode.isEnabled()) {
                                 httpStatus = 200;
                                 node.status = "COMPLETED";
                                 node.output = nodeOutput;
@@ -373,7 +375,7 @@ public class SupervisorService {
 
     private Map<String, Object> extractMockOrLlmParams(AgentSearchMatchDto agent, String query) {
         try {
-            if ("mock-key".equalsIgnoreCase(apiKey)) {
+            if (mockMode.isLlmMocked()) {
                 Map<String, Object> mockParams = new HashMap<>();
                 for (AgentParameterDto p : agent.getParameters()) {
                     if ("boolean".equalsIgnoreCase(p.getType())) {
@@ -476,7 +478,7 @@ public class SupervisorService {
 
     private Dag planDag(UUID workspaceId, String query, List<AgentSearchMatchDto> candidates) {
         Dag dag = new Dag();
-        if ("mock-key".equalsIgnoreCase(apiKey)) {
+        if (mockMode.isLlmMocked()) {
             String[] clauses = query.split("(?i)\\b(?:then|and then|next|and finally)\\b");
             int idGen = 1;
             for (int i = 0; i < clauses.length; i++) {

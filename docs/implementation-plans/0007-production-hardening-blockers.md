@@ -3,11 +3,11 @@
 | Field | Value |
 |---|---|
 | **Plan #** | 0007 |
-| **Status** | In Progress |
+| **Status** | Done |
 | **Branch** | `feature/0007-production-hardening` |
 | **Author** | Claude + Shubham |
 | **Created** | 2026-10-13 |
-| **Last updated** | 2026-10-13 |
+| **Last updated** | 2026-11-23 |
 | **Related design doc** | `docs/SECURITY-AND-ACCESS.md`, `docs/SECRETS-MANAGEMENT.md` |
 
 ## 1. Understanding
@@ -106,8 +106,8 @@ Phase 1 is the configuration spine every later phase asserts against, so it land
   | `symphony-ui/src/index.css` | Layout classes for the sign-in screen and the identity pill; the form reuses the existing card, form-group, form-control and button primitives (modified) |
   | `symphony-backend/src/test/java/com/symphony/AuthenticationIntegrationTest.java` | Covers correct login, wrong password, unknown username, blank credentials, no role escalation, and that no placeholder hash survives (new) |
 
-### Phase 3 — Stop logging unmasked PII · Status: In Progress
-- **Does:** Removes the pre-mask query from the Supervisor log line and adds a regression test. The log-line change itself landed with Phase 2, since both edits touch the same method; only the regression test remains.
+### Phase 3 — Stop logging unmasked PII · Status: Done
+- **Does:** Removes the pre-mask query from the Supervisor log line and adds a regression test. Both landed in the Phase 2 commit (`1f74e87`), since the log line sits in the same method Phase 2 rewrote; this status was not updated at the time.
 - **Verify:** Submit a query containing a fixture SSN and card number; assert captured log output contains neither, while the masked placeholders are still present for traceability.
 - **Changed files:**
 
@@ -156,20 +156,26 @@ Phase 1 is the configuration spine every later phase asserts against, so it land
   | `symphony-backend/src/test/java/com/symphony/AgentHeartbeatIntegrationTest.java` | Rewritten against a local stub HTTP server on an ephemeral port: healthy, 503, unreachable, recovery, no-health-URL, and a regression test that a failing `localhost` endpoint is no longer assumed healthy (modified) |
   | `symphony-backend/src/test/java/com/symphony/ConfigurationGuardTest.java` | JWT invariant tests updated for the key-store check (modified) |
 
-### Phase 6 — Remove mock branching from service logic, enable the guard, update docs · Status: Pending
-- **Does:** Replaces the remaining `"mock-key"` string comparisons with the injected flag, turns the guard on by default, and brings the docs into line.
-- **Verify:** `grep -rn '"mock-key"' symphony-backend/src/main` returns nothing. Full suite green. With mock mode off and no OpenAI key, startup aborts rather than serving seeded-random embeddings as real results.
+### Phase 6 — Remove mock branching from service logic, enable the guard, update docs · Status: Done
+- **Does:** Replaces the remaining `"mock-key"` string comparisons with explicit settings, moves the startup guard ahead of bean creation, and brings the docs into line.
+- **Verify:** `grep -rn '"mock-key"' symphony-backend/src/main` returns nothing. Full suite green. With nothing configured, production startup lists every missing setting in one message. Mock mode with no OpenAI key onboards, searches and routes with zero outbound calls.
 - **Changed files:**
 
   | File | Brief |
   |---|---|
-  | `symphony-backend/src/main/java/com/symphony/service/openai/OpenAiEmbeddingClient.java` | Line 45: branch on the injected flag; keep the seeded generator for mock mode only (modified) |
-  | `symphony-backend/src/main/java/com/symphony/service/SupervisorService.java` | Lines 190, 202, 352, 455: branch on the injected flag instead of the API-key value (modified) |
-  | `symphony-backend/src/main/java/com/symphony/service/GapClusteringService.java` | Line 59: same substitution for the clustering path (modified) |
-  | `docs/SECURITY-AND-ACCESS.md` | §1 implementation-status note updated: login now verifies a password and derives roles from the database; RS256 and the rotation window documented (modified) |
-  | `docs/SECRETS-MANAGEMENT.md` | §3 status block updated: durable Vault-backed implementation is the production default; §4 rotation marked implemented for JWT keys (modified) |
-  | `docs/ARCHITECTURE.md` | §4 stack table: secrets, auth, and LLM rows move from development shortcut to implemented (modified) |
-  | `README.md` | Replace the mock-key paragraph with the explicit `SYMPHONY_MOCK_ENABLED` flag and the production variable set (modified) |
+  | `symphony-backend/src/main/java/com/symphony/config/MockModeProperties.java` | Adds `symphony.mock.llm` (unset = follow mock mode), `isLlmMocked()`, and a static `resolveLlmMocked` so the pre-bean guard and the services apply one rule (modified) |
+  | `symphony-backend/src/main/java/com/symphony/service/openai/OpenAiEmbeddingClient.java` | Branches on `isLlmMocked()`; `openai.api-key` default removed (modified) |
+  | `symphony-backend/src/main/java/com/symphony/service/SupervisorService.java` | Parameter extraction and DAG planning branch on `isLlmMocked()`. The two chain-dispatch bypasses, which turn a failed agent call into a success, branch on mock mode itself. That is agent faking, not LLM faking (modified) |
+  | `symphony-backend/src/main/java/com/symphony/service/GapClusteringService.java` | Clustering branches on `isLlmMocked()` (modified) |
+  | `symphony-backend/src/main/java/com/symphony/config/ConfigurationGuard.java` | Rewritten as a `BeanFactoryPostProcessor`, so it runs before any bean exists and reports every problem at once. Invariants now: mocked LLM, missing OpenAI key, local vault provider, missing Vault URI or token, unrecognised provider. The `mock-key` and vault-encryption-key checks are removed. The mock banner lists only what this instance actually fakes (modified) |
+  | `symphony-backend/src/main/resources/application.yml` | `openai.api-key` has no default; `symphony.mock.llm` added (modified) |
+  | `symphony-backend/src/test/resources/application.yml` | API key is now an unused placeholder (modified) |
+  | `symphony-backend/src/test/java/com/symphony/ConfigurationGuardTest.java` | 14 tests for the new invariant set: everything reported together, local provider reported once, vault encryption key not required, the old sentinel now treated as an ordinary key, and the guard and services agreeing on the LLM rule (modified) |
+  | `README.md` | "Running Locally" rewritten: mock mode, seeded accounts, the per-concern overrides, the production variable set, and how to run the Vault contract tests (modified) |
+  | `docs/ARCHITECTURE.md` | Stack table rows for secrets, auth, LLM and scheduling now describe the implementation; the removed health-check bypass replaced by the guard's behaviour (modified) |
+  | `docs/SECURITY-AND-ACCESS.md` | §1 status: password check, roles from the database, RS256 with `kid`; payload example gains `platform_role` and the header (modified) |
+  | `docs/SECRETS-MANAGEMENT.md` | §3 status: provider selection and the Vault default; §4 rotation: mechanism implemented, timed rotation pending a distributed lock (modified) |
+  | `docs/ROADMAP.md` | Outstanding items for roadmap phase 3 updated (modified) |
 
 ## 4. Risks & mitigations
 
@@ -253,6 +259,18 @@ Against `hashicorp/vault:1.17` in dev mode on `localhost:8200`.
 | `localhost` health endpoint returning 503 | `UNHEALTHY` — previously assumed `ACTIVE` without a request |
 | Test suite | 59 tests, 0 failures, 0 skipped |
 
+### 6.1e Verified for Phase 6 (2026-11-23)
+
+| Check | Result |
+|---|---|
+| `grep -rn '"mock-key"' symphony-backend/src/main` | No matches |
+| Production mode, nothing configured | Refuses to start and lists all three problems in one message (OpenAI key, Vault URI, Vault token); 0 bean-creation failures beforehand |
+| Production mode with `SYMPHONY_MOCK_LLM=true` | Refuses: mocked LLM |
+| Production mode, fully configured, `SYMPHONY_VAULT_ENCRYPTION_KEY` **unset** | Starts: `Configuration guard passed`, Vault-backed secrets and key ring |
+| Mock mode with **no** `OPENAI_API_KEY` | Banner lists five stand-ins; onboarding `200`, search ranks the new agent first, chat routes to it; **0** outbound OpenAI calls |
+| Mock mode with `SYMPHONY_MOCK_LLM=false` | Banner says "LLM calls are REAL … and will incur cost" |
+| Test suite | 64 tests, 0 failures, 0 skipped |
+
 ### 6.2 End to end, after all phases:
 
 1. **Negative startup:** with no environment variables, `./gradlew bootRun` aborts and names each unsatisfied invariant. This is the single most important check in the plan — it is what converts all six silent failures into loud ones.
@@ -306,7 +324,24 @@ Phases are independently revertable and ordered so that reverting a later phase 
 | 2026-10-13 | `AgentHeartbeatIntegrationTest` rewritten rather than adjusted | Its "local agent is ACTIVE" assertion passed only because the old code skipped any `localhost` URL unprobed; the endpoint it pointed at (`/actuator/health`) does not exist in this application, and no actuator dependency is present. The test would have passed whether or not the probe worked. It now runs against a stub HTTP server it starts on an ephemeral port, so every assertion follows from a real request |
 | 2026-10-13 | `VaultJwtKeyStore` fails the boot when Vault cannot be read | Generating a fresh ring on a read failure would sign every user out and mask a Vault outage or a permissions error as a routine restart |
 | 2026-10-13 | `VaultTemplate` promoted to a `@Lazy` bean | Both the secrets vault and the JWT key store need one. Lazy means a local run never constructs a Vault client, so a missing `VAULT_URI` is only an error for a deployment that actually needs one |
+| 2026-11-23 | `symphony.mock.llm` added instead of tying LLM faking to mock mode | Before Phase 6, running mock mode with a real `OPENAI_API_KEY` gave a real LLM alongside seeded accounts and no health probes. That is the setup for tuning routing quality locally. Removing the key-sniffing without a replacement would have removed that option. It defaults to mock mode, so nothing changes unless it is set, and the guard refuses it in production. Same reasoning as the vault provider and `assume-healthy` |
+| 2026-11-23 | Chain-dispatch bypasses follow mock mode, not the LLM setting | Those two branches turn a failed agent HTTP call into a success inside multi-agent chains. That fakes agents, not the LLM, so it should not change when someone opts into a real LLM. The single-agent path never had a bypass, and still doesn't |
+| 2026-11-23 | `ConfigurationGuard` moved from `ApplicationRunner` to `BeanFactoryPostProcessor` | Regression from Phases 4–5. Once Vault-backed beans existed, an unconfigured production boot died building the Vault client before the guard ran. It reported only `symphony.vault.uri`, so the operator learned of each missing setting one restart at a time, which is exactly what Phase 1 set out to stop. Phase 4–5 verification always set the Vault variables, so it went unnoticed. Every invariant can be derived from configuration, so the guard now runs before any bean is created |
+| 2026-11-23 | Guard no longer requires `symphony.vault.encryption-key` | Only the in-memory vault reads that key, and the guard already refuses that vault in production. A correctly configured Vault deployment was being blocked over a setting it never uses. Phase 4 verification hid this by setting the variable anyway |
+| 2026-11-23 | Guard no longer treats the literal `mock-key` specially | After Phase 6 that value selects no behaviour. Set in production, it is sent to OpenAI and rejected, which is a loud failure, so the special case no longer protects against anything. The dangerous state is now checked directly as a mocked LLM |
+| 2026-11-23 | A local vault provider is reported as one violation, not two | Agent credentials and JWT keys both follow `symphony.vault.provider`, and one setting fixes both. Listing them separately read as two problems |
+| 2026-11-23 | Phase 3 marked Done retroactively | Its log fix and `PiiRedactionTest` both shipped in the Phase 2 commit (`1f74e87`); the status was not updated then |
+| 2026-11-23 | Phase 6 verified against Postgres on port 5433 | Port 5432 on the development machine now belongs to another project's database (`nm-vac-pg`), and the earlier `symphony-postgres` container had been removed. A fresh container was started on 5433 via `SPRING_DATASOURCE_URL`, leaving the other project's database untouched |
 
 ## 9. Commits / PR
 
-- Commit/PR: _pending — plan not yet approved_
+All on `feature/0007-production-hardening`:
+
+- `958447c` — docs: reconcile specs with implemented backend and mark plan 0006 done
+- `0b108e5` — docs(plan): this plan
+- `1f74e87` — Phase 2 (and Phase 3): verify credentials at login, derive identity from the database, stop logging unmasked PII
+- `cb0e6c9` — Phase 1: configuration guard and mock-mode flag
+- `43a8e5c` — Phase 4: durable HashiCorp Vault backend
+- `1afc9fc` — Phase 5: RS256 signing keys with `kid` rotation; real health probes
+- Phase 6: this commit — mock-key branching removed, guard runs before bean creation, docs updated
+- PR: not opened

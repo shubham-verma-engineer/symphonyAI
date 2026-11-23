@@ -8,7 +8,7 @@ This document details the security and governance architecture of SymphonyAI, in
 
 SymphonyAI enforces centralized authentication via corporate Single Sign-On (SSO) using OpenID Connect (OIDC) or OAuth 2.0.
 
-> **Implementation status**: the OIDC redirect and code-exchange flow below is the target design and is **not yet wired up**. Today `POST /api/v1/auth/login` authenticates a local username and password against the `users` table and issues the platform JWT directly (JJWT, HS256, signed with `symphony.jwt.secret`, 24h expiry). `JwtAuthenticationFilter` then validates that token on every request and populates a `SymphonyAuthentication`. The JWT shape and all downstream RBAC logic are already built against the payload shown below, so swapping the credential check for an OIDC code exchange does not disturb the rest of the chain.
+> **Implementation status**: the OIDC redirect and code-exchange flow below is the target design and is **not yet wired up**. Today `POST /api/v1/auth/login` takes a username and password, checks the password against a BCrypt hash in `users.password_hash`, and issues the platform JWT directly. Every identity claim comes from the database, never the request: `roles` from `users.corporate_roles`, `platform_role` from `users.role_flag`, and the workspace from `workspace_members`. An unknown username and a wrong password both return 401 with the same message. Tokens are **RS256** with a `kid` header. Keys come from a ring stored in Vault, and a rotated-out key keeps verifying for a 24-hour overlap (see `SECRETS-MANAGEMENT.md` §4). A token with no `kid` is rejected, so anything signed with the old committed HS256 secret no longer validates. `JwtAuthenticationFilter` validates the token on every request and fills in a `SymphonyAuthentication` holding the full role list. Because downstream RBAC already reads this token shape, swapping the password check for an OIDC code exchange does not disturb the rest of the chain.
 
 ```mermaid
 sequenceDiagram
@@ -29,6 +29,8 @@ sequenceDiagram
 ```
 
 ### Session JWT Payload Example
+Header: `{"alg": "RS256", "kid": "<key id from the Vault key ring>"}`. `roles` holds the **corporate** roles that agent RBAC checks (§2.2). `platform_role` holds the **registry-scope** role (`ADMIN` / `CREATOR` / `USER`). They are separate layers, stored in separate columns.
+
 ```json
 {
   "iss": "symphony-ai.internal",
@@ -36,6 +38,7 @@ sequenceDiagram
   "name": "Jane Doe",
   "email": "jane.doe@enterprise.com",
   "roles": ["HR_ADMIN", "REGIONAL_MANAGER"],
+  "platform_role": "CREATOR",
   "assigned_workspaces": [
     {
       "workspace_id": "ws_d8923a102e3b",

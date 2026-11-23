@@ -1,5 +1,6 @@
 package com.symphony.service.openai;
 
+import com.symphony.config.MockModeProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -27,7 +28,9 @@ public class OpenAiEmbeddingClient {
 
     private static final MediaType JSON_MEDIA = MediaType.parse("application/json");
 
-    @Value("${openai.api-key:mock-key}")
+    private final MockModeProperties mockMode;
+
+    @Value("${openai.api-key:}")
     private String apiKey;
 
     @Value("${openai.base-url:https://api.openai.com}")
@@ -42,8 +45,8 @@ public class OpenAiEmbeddingClient {
     private final ObjectMapper mapper = new ObjectMapper();
     private final Random random = new Random(42); // Seeded for deterministic mock outputs
     public float[] embed(String text) throws IOException {
-        if ("mock-key".equalsIgnoreCase(apiKey)) {
-            log.info("Generating mock embedding for text (mock-key active)");
+        if (mockMode.isLlmMocked()) {
+            log.debug("Generating deterministic local embedding (LLM mocked)");
             float[] mockVec = new float[DIMENSIONS];
             // 1. Fill with base noise
             Random seededRandom = new Random(text.toLowerCase().hashCode());

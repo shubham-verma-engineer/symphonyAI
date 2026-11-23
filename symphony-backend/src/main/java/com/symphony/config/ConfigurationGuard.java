@@ -1,11 +1,10 @@
 package com.symphony.config;
 
-import com.symphony.config.jwt.JwtKeyStore;
-import com.symphony.service.SecretsVaultService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
+import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
+import org.springframework.context.EnvironmentAware;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -24,48 +23,47 @@ import java.util.List;
  * <p>This component converts each of those into a startup failure. Validation
  * lives in one place rather than being scattered across the classes that consume
  * the values, so the full set of problems is reported in a single message instead
- * of one per restart. Failing at startup is the only reliable guard available
- * here, precisely because none of these defects announces itself at runtime.
+ * of one per restart.
  *
- * <p>In mock mode every check is skipped and a prominent banner is logged, so
- * that mode can never be mistaken for a real deployment when reading logs.
+ * <p>It runs as a {@link BeanFactoryPostProcessor} — after configuration is
+ * loaded, before any bean is created. It began as an {@code ApplicationRunner},
+ * which runs after the context is up; once the Vault-backed beans arrived, an
+ * unconfigured production boot died constructing the Vault client and the guard
+ * never ran, so the operator learned about one missing setting per attempt.
+ * Every invariant here is derivable from configuration alone, which is what lets
+ * it run that early.
+ *
+ * <p>In mock mode every check is skipped and a banner is logged describing what
+ * this particular instance is faking.
  */
 @Component
 @Slf4j
-public class ConfigurationGuard implements ApplicationRunner {
+public class ConfigurationGuard implements BeanFactoryPostProcessor, EnvironmentAware {
 
-    /** The development vault key hardcoded in {@code LocalSecretsVaultService}. */
-    static final String KNOWN_DEFAULT_VAULT_KEY = "this-is-a-32-byte-encryption-key-for-local-vault";
+    private Environment environment;
 
-    /** Sentinel that routes every LLM and embedding call down the offline mock path. */
-    static final String MOCK_API_KEY = "mock-key";
-
-    private final MockModeProperties mockMode;
-    private final SecretsVaultService secretsVaultService;
-    private final JwtKeyStore jwtKeyStore;
-
-    @Value("${openai.api-key:}")
-    private String openAiApiKey;
-
-    @Value("${symphony.vault.encryption-key:" + KNOWN_DEFAULT_VAULT_KEY + "}")
-    private String vaultEncryptionKey;
-
-    public ConfigurationGuard(MockModeProperties mockMode, SecretsVaultService secretsVaultService,
-                              JwtKeyStore jwtKeyStore) {
-        this.mockMode = mockMode;
-        this.secretsVaultService = secretsVaultService;
-        this.jwtKeyStore = jwtKeyStore;
+    @Override
+    public void setEnvironment(Environment environment) {
+        this.environment = environment;
     }
 
     @Override
-    public void run(ApplicationArguments args) {
-        if (mockMode.isEnabled()) {
-            logMockModeBanner();
+    public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) {
+        boolean mockEnabled = Boolean.parseBoolean(property("symphony.mock.enabled", "false"));
+        boolean llmMocked = MockModeProperties.resolveLlmMocked(property("symphony.mock.llm", ""), mockEnabled);
+        String configuredProvider = property("symphony.vault.provider", "");
+
+        if (mockEnabled) {
+            logMockModeBanner(llmMocked, configuredProvider);
             return;
         }
 
         List<String> violations = findViolations(
-                openAiApiKey, vaultEncryptionKey, secretsVaultService.isDurable(), jwtKeyStore.isDurable());
+                property("openai.api-key", ""),
+                llmMocked,
+                configuredProvider,
+                property("symphony.vault.uri", ""),
+                property("symphony.vault.token", ""));
 
         if (!violations.isEmpty()) {
             StringBuilder message = new StringBuilder(
@@ -89,65 +87,103 @@ public class ConfigurationGuard implements ApplicationRunner {
     /**
      * Returns one human-readable violation per unsatisfied production invariant.
      *
-     * <p>Takes its inputs as arguments rather than reading fields so the rules
-     * can be exercised directly, without standing up an application context.
-     * Every message names the offending property and what is expected, because a
-     * guard that blocks a deployment without saying why gets disabled rather
-     * than fixed.
+     * <p>Takes its inputs as arguments rather than reading configuration so the
+     * rules can be exercised directly, without standing up an application
+     * context. Every message names the property or variable to change, because a
+     * guard that blocks a deployment without saying why gets disabled rather than
+     * fixed.
+     *
+     * <p>There is no longer a check for the literal key value {@code mock-key}:
+     * since phase 6 of plan 0007 that value selects nothing, so it would simply
+     * be sent to OpenAI and rejected — a loud failure, not the silent one the
+     * check existed to catch. Nor is {@code symphony.vault.encryption-key}
+     * checked: only the in-memory vault reads it, and that vault is refused here
+     * on durability grounds.
      */
-    static List<String> findViolations(String openAiApiKey, String vaultEncryptionKey,
-                                       boolean vaultIsDurable, boolean jwtKeyStoreIsDurable) {
+    static List<String> findViolations(String openAiApiKey, boolean llmMocked, String configuredProvider,
+                                       String vaultUri, String vaultToken) {
         List<String> violations = new ArrayList<>();
 
-        if (isBlank(openAiApiKey)) {
-            violations.add("openai.api-key is not set. Set OPENAI_API_KEY to a real key. "
-                    + "Leaving it unset previously fell back to the offline mock path, which answers "
-                    + "semantic searches with vectors from a seeded PRNG.");
-        } else if (MOCK_API_KEY.equalsIgnoreCase(openAiApiKey.trim())) {
-            violations.add("openai.api-key is the literal \"" + MOCK_API_KEY + "\", which selects the offline "
-                    + "mock path: seeded embeddings, canned parameter extraction and bypassed agent calls. "
-                    + "Set OPENAI_API_KEY to a real key.");
+        if (llmMocked) {
+            violations.add("symphony.mock.llm is true, so embeddings, routing, parameter extraction and gap "
+                    + "clustering would use deterministic local stand-ins. Semantic search would rank agents "
+                    + "with vectors from a seeded PRNG while looking entirely normal. Unset SYMPHONY_MOCK_LLM.");
+        } else if (isBlank(openAiApiKey)) {
+            violations.add("openai.api-key is not set. Set OPENAI_API_KEY to a real key.");
         }
 
-        if (!jwtKeyStoreIsDurable) {
-            violations.add("JWT signing keys are held in an ephemeral in-memory store, so every restart "
-                    + "would invalidate all issued tokens and sign every user out. Point "
-                    + "symphony.vault.provider at hashicorp so the key ring is persisted and shared "
-                    + "across replicas.");
+        String provider;
+        try {
+            provider = VaultProviderConfig.resolveProvider(configuredProvider, false);
+        } catch (IllegalStateException e) {
+            violations.add(e.getMessage());
+            return violations;
         }
 
-        if (isBlank(vaultEncryptionKey) || KNOWN_DEFAULT_VAULT_KEY.equals(vaultEncryptionKey.trim())) {
-            violations.add("symphony.vault.encryption-key is unset or still the hardcoded development key, "
-                    + "so stored agent credentials are readable by anyone with this repository. "
-                    + "Supply a key from the environment.");
-        }
-
-        if (!vaultIsDurable) {
-            violations.add("The active SecretsVaultService does not survive a restart. Agent credentials "
-                    + "would be lost while the agents.credential_vault_uri rows pointing at them persist, "
-                    + "leaving dangling references. Set symphony.vault.provider=hashicorp and supply "
-                    + "VAULT_URI and VAULT_TOKEN.");
+        if (VaultProviderConfig.PROVIDER_LOCAL.equals(provider)) {
+            // One message, not two: the same setting fixes both, and listing
+            // them separately reads as two problems to solve.
+            violations.add("symphony.vault.provider is local, so neither agent credentials nor JWT signing "
+                    + "keys survive a restart: credentials would vanish while the "
+                    + "agents.credential_vault_uri rows pointing at them persist, and every restart would "
+                    + "sign every user out. Set SYMPHONY_VAULT_PROVIDER=hashicorp.");
+        } else {
+            if (isBlank(vaultUri)) {
+                violations.add("symphony.vault.uri is not set. Set VAULT_URI to the address of a reachable "
+                        + "Vault, for example https://vault.internal:8200.");
+            }
+            if (isBlank(vaultToken)) {
+                violations.add("symphony.vault.token is not set. Set VAULT_TOKEN to a token with read and "
+                        + "write access to the configured KV mount.");
+            }
         }
 
         return violations;
+    }
+
+    private String property(String key, String defaultValue) {
+        String value = environment.getProperty(key);
+        return value == null ? defaultValue : value;
     }
 
     private static boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
     }
 
-    private void logMockModeBanner() {
-        log.warn("\n"
+    /**
+     * Lists what this instance is actually faking. Mock mode no longer implies
+     * every stand-in — the LLM, the vault and the key store can each be pointed
+     * at the real thing — so a fixed list would tell a reader things that are
+     * not true of the instance in front of them.
+     */
+    private void logMockModeBanner(boolean llmMocked, String configuredProvider) {
+        boolean localVault;
+        try {
+            localVault = VaultProviderConfig.PROVIDER_LOCAL.equals(
+                    VaultProviderConfig.resolveProvider(configuredProvider, true));
+        } catch (IllegalStateException e) {
+            // Reported properly when the vault provider bean is built.
+            localVault = true;
+        }
+
+        StringBuilder banner = new StringBuilder("\n"
                 + "***************************************************************\n"
                 + "  MOCK MODE ENABLED - symphony.mock.enabled=true\n"
                 + "***************************************************************\n"
-                + "  This instance is NOT production-safe:\n"
-                + "    - LLM routing and embeddings are deterministic local fakes\n"
-                + "    - Outbound agent calls are bypassed, not performed\n"
-                + "    - Agent health probes are skipped; agents report ACTIVE\n"
-                + "    - Stored agent credentials are lost on restart\n"
-                + "    - Development accounts are seeded with a shared password\n"
-                + "  Unset SYMPHONY_MOCK_ENABLED for a real deployment.\n"
-                + "***************************************************************");
+                + "  This instance is NOT production-safe:\n");
+        if (llmMocked) {
+            banner.append("    - LLM routing and embeddings are deterministic local fakes\n");
+        } else {
+            banner.append("    - LLM calls are REAL (symphony.mock.llm=false) and will incur cost\n");
+        }
+        banner.append("    - Failed agent calls inside multi-agent chains are reported as successes\n")
+                .append("    - Agent health probes are skipped unless symphony.heartbeat.assume-healthy=false\n");
+        if (localVault) {
+            banner.append("    - Agent credentials and JWT signing keys are lost on restart\n");
+        }
+        banner.append("    - Development accounts are seeded with a shared password\n")
+                .append("  Unset SYMPHONY_MOCK_ENABLED for a real deployment.\n")
+                .append("***************************************************************");
+        log.warn(banner.toString());
     }
 }
