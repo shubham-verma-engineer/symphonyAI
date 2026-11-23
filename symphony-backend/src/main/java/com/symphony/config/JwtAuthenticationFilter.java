@@ -33,12 +33,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 UUID userId = UUID.fromString(claims.getSubject());
                 String username = claims.get("name", String.class);
                 
-                // Roles extraction
+                // Corporate (SSO) roles — all of them, since holding any one of
+                // an agent's authorised roles is enough to grant access.
+                List<String> roles = new ArrayList<>();
                 List<?> rolesList = claims.get("roles", List.class);
-                String activeRole = "Employee";
-                if (rolesList != null && !rolesList.isEmpty()) {
-                    activeRole = (String) rolesList.get(0);
+                if (rolesList != null) {
+                    for (Object role : rolesList) {
+                        if (role instanceof String s && !s.isBlank()) {
+                            roles.add(s);
+                        }
+                    }
                 }
+
+                String platformRole = claims.get("platform_role", String.class);
 
                 // Workspace ID extraction
                 UUID workspaceId = DatabaseInitializer.DEFAULT_WORKSPACE_ID;
@@ -50,8 +57,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     }
                 }
 
-                List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + activeRole.toUpperCase()));
-                SymphonyAuthentication auth = new SymphonyAuthentication(userId, workspaceId, username, activeRole, authorities);
+                List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+                for (String role : roles) {
+                    authorities.add(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()));
+                }
+                if (platformRole != null && !platformRole.isBlank()) {
+                    authorities.add(new SimpleGrantedAuthority("PLATFORM_" + platformRole.toUpperCase()));
+                }
+
+                SymphonyAuthentication auth =
+                        new SymphonyAuthentication(userId, workspaceId, username, roles, platformRole, authorities);
                 
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }

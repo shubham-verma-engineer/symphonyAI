@@ -657,3 +657,62 @@ body {
 .terminal-line.success { color: var(--success); }
 .terminal-line.error { color: var(--error); }
 .terminal-line.info { color: #5f9ea0; }
+
+/* ---------------------------------------------------------------------------
+   Sign-in screen and session identity
+   Added with phase 2 of plan 0007, when the client-side role dropdown was
+   replaced by real authentication. Layout only — the form itself reuses the
+   existing .premium-card, .form-group, .form-control and .btn primitives.
+   --------------------------------------------------------------------------- */
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background-color: var(--bg-primary);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 2.5rem;
+}
+
+.login-submit {
+  width: 100%;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+
+.login-error {
+  color: var(--error);
+  font-size: 0.8rem;
+  margin: 0 0 1rem;
+}
+
+/* Read-only session identity in the top header. Replaces the role <select>:
+   roles are resolved from the directory and are not client-editable. */
+.identity-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-secondary);
+  font-size: 0.775rem;
+}
+
+.identity-roles {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.identity-platform {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  padding-left: 0.5rem;
+  border-left: 1px solid var(--border-color);
+}

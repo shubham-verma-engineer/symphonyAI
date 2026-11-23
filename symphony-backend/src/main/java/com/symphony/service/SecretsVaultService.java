@@ -24,4 +24,18 @@ public interface SecretsVaultService {
      * @param vaultUri The reference URI of the secret.
      */
     void deleteSecret(String vaultUri);
+
+    /**
+     * Whether secrets stored here survive an application restart.
+     *
+     * <p>Defaults to {@code false}: an implementation must positively declare
+     * durability, so a new in-memory or test double is never mistaken for one.
+     * {@code ConfigurationGuard} refuses to start in production mode while the
+     * active implementation is non-durable, because losing agent credentials on
+     * restart leaves the {@code agents.credential_vault_uri} rows pointing at
+     * secrets that no longer exist.
+     */
+    default boolean isDurable() {
+        return false;
+    }
 }

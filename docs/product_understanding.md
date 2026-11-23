@@ -5,7 +5,8 @@
 
 ### Document Metadata
 * **Status**: Approved / Baseline
-* **Version**: 1.0.0
+* **Version**: 1.0.1
+* **Last reviewed**: 2026-10-13 — reconciled against the implemented backend and UI
 * **Target Audience**: Enterprise Architects, AI Engineering Lead, IT Security Officers, Product Managers
 * **Author**: Antigravity AI Architect
 
@@ -146,8 +147,8 @@ When an agent manifest specifies `requiresRBAC: true`, the gateway validates the
 
 ### 4.2 PII Protection Firewall
 The [PiiFirewallService.java](file:///Users/shubhamverma/Documents/JavaProjects/startup/symphonyAI/symphony-backend/src/main/java/com/symphony/service/PiiFirewallService.java) executes regex pattern scans to intercept sensitive data before they exit the secure enterprise bounds:
-* **Masking**: Replaces identified fields (SSNs, emails, credit card patterns) with randomly generated GUID placeholders.
-* **Detokenization**: The gateway stores mappings in a thread-local transactional state and replaces placeholders with their original variables right before returning final compiled values to the authenticated client.
+* **Masking**: Replaces identified fields (SSNs, emails, credit card patterns) with sequential placeholders of the form `[MASKED_EMAIL_1]`, `[MASKED_CARD_1]`, `[MASKED_SSN_1]`.
+* **Detokenization**: `sanitize()` returns the placeholder-to-original map inside a `FirewallResult`; `SupervisorService` keeps it in request-local scope and substitutes the originals back in right before returning the compiled response to the authenticated client. See `docs/SECURITY-AND-ACCESS.md` §3 for the planned move to a TTL'd shared cache.
 
 ---
 

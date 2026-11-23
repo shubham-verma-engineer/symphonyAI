@@ -8,3 +8,6 @@ build/
 *.log
 *.lock
 .DS_Store
+
+# Local developer settings (machine-specific JDK path)
+gradle.properties

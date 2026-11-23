@@ -1,5 +1,6 @@
 package com.symphony.service;
 
+import com.symphony.config.MockModeProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -27,8 +28,9 @@ public class GapClusteringService {
 
     private final FailedQueryRepository failedQueryRepository;
     private final InnovationGapRepository gapRepository;
+    private final MockModeProperties mockMode;
 
-    @Value("${openai.api-key:mock-key}")
+    @Value("${openai.api-key:}")
     private String apiKey;
 
     @Value("${openai.base-url:https://api.openai.com}")
@@ -56,7 +58,7 @@ public class GapClusteringService {
                 .collect(Collectors.toList());
 
         try {
-            if ("mock-key".equalsIgnoreCase(apiKey)) {
+            if (mockMode.isLlmMocked()) {
                 runMockClustering(workspaceId, queryStrings);
             } else {
                 runLlmClustering(workspaceId, queryStrings);

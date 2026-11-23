@@ -1,5 +1,6 @@
 package com.symphony.service;
 
+import com.symphony.config.MockModeProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -27,8 +28,9 @@ public class SupervisorService {
     private final AgentService agentService;
     private final TelemetryService telemetryService;
     private final SecretsVaultService secretsVaultService;
+    private final MockModeProperties mockMode;
 
-    @Value("${openai.api-key:mock-key}")
+    @Value("${openai.api-key:}")
     private String apiKey;
 
     @Value("${openai.base-url:https://api.openai.com}")
@@ -41,7 +43,16 @@ public class SupervisorService {
 
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public SupervisorResponseDto routeAndExecute(UUID workspaceId, UUID userId, String userRole, String query) {
+    /**
+     * Routes and executes a query on behalf of an authenticated user.
+     *
+     * @param userRoles every corporate role the user holds. Authorisation uses
+     *                  the whole set, because holding any one of an agent's
+     *                  authorised roles is sufficient.
+     * @param userRole  the role used for display and telemetry labelling only.
+     */
+    public SupervisorResponseDto routeAndExecute(UUID workspaceId, UUID userId, List<String> userRoles,
+                                                 String userRole, String query) {
         log.info("Supervisor evaluating query under role '{}': '{}'", userRole, query);
         long startTime = System.currentTimeMillis();
         List<String> steps = new ArrayList<>();
@@ -126,7 +137,7 @@ public class SupervisorService {
                                 .authorizedRoles(node.authorizedRoles)
                                 .build();
 
-                        if (isRbacBlocked(dummyMatch, userRole)) {
+                        if (isRbacBlocked(dummyMatch, userRoles)) {
                             node.status = "FAILED";
                             dagSuccess = false;
                             steps.add(String.format("Security Halt: Role '%s' is unauthorized to execute agent '%s'.", userRole, node.agentName));
@@ -187,7 +198,7 @@ public class SupervisorService {
                                 lastOutput = nodeOutput;
                                 steps.add(String.format("Executed '%s' -> responded successfully with HTTP %d", node.agentName, httpStatus));
                             } else {
-                                if ("mock-key".equalsIgnoreCase(apiKey)) {
+                                if (mockMode.isEnabled()) {
                                     node.status = "COMPLETED";
                                     node.output = nodeOutput;
                                     lastOutput = nodeOutput;
@@ -199,7 +210,7 @@ public class SupervisorService {
                                 }
                             }
                         } catch (IOException e) {
-                            if ("mock-key".equalsIgnoreCase(apiKey)) {
+                            if (mockMode.isEnabled()) {
                                 httpStatus = 200;
                                 node.status = "COMPLETED";
                                 node.output = nodeOutput;
@@ -274,7 +285,7 @@ public class SupervisorService {
                 targetAgent.getName(), Math.round(targetAgent.getSimilarity() * 100)));
 
         // Validate RBAC
-        if (isRbacBlocked(targetAgent, userRole)) {
+        if (isRbacBlocked(targetAgent, userRoles)) {
             steps.add(String.format("Security Halt: Execution blocked for '%s'. Role '%s' is unauthorized.", targetAgent.getName(), userRole));
             telemetryService.logRouting(workspaceId, userId, targetAgent.getId(), query, "routed", 0, 403, userRole);
             return createAccessDeniedResponse(targetAgent.getName(), userRole, steps);
@@ -324,14 +335,29 @@ public class SupervisorService {
                 .build();
     }
 
-    private boolean isRbacBlocked(AgentSearchMatchDto agent, String userRole) {
+    /**
+     * Blocks when the agent requires RBAC and the user holds none of its
+     * authorised roles, per {@code docs/SECURITY-AND-ACCESS.md} section 2.2.
+     *
+     * <p>Evaluates the intersection against every role the user holds. Checking
+     * only one role would wrongly reject a user whose matching role happened not
+     * to be the first in their list.
+     */
+    private boolean isRbacBlocked(AgentSearchMatchDto agent, List<String> userRoles) {
         if (agent.getRequiresRbac() != null && agent.getRequiresRbac()) {
             if (agent.getAuthorizedRoles() == null || agent.getAuthorizedRoles().isEmpty()) {
                 return true; // restricted agent with no configured roles is blocked by default
             }
-            // Check case-insensitive intersection
+            if (userRoles == null || userRoles.isEmpty()) {
+                return true; // no corporate roles means no access to restricted agents
+            }
+            // Case-insensitive intersection between the user's roles and the
+            // agent's authorised roles.
             return agent.getAuthorizedRoles().stream()
-                    .noneMatch(role -> role.trim().equalsIgnoreCase(userRole.trim()));
+                    .filter(Objects::nonNull)
+                    .noneMatch(authorized -> userRoles.stream()
+                            .filter(Objects::nonNull)
+                            .anyMatch(held -> held.trim().equalsIgnoreCase(authorized.trim())));
         }
         return false;
     }
@@ -349,7 +375,7 @@ public class SupervisorService {
 
     private Map<String, Object> extractMockOrLlmParams(AgentSearchMatchDto agent, String query) {
         try {
-            if ("mock-key".equalsIgnoreCase(apiKey)) {
+            if (mockMode.isLlmMocked()) {
                 Map<String, Object> mockParams = new HashMap<>();
                 for (AgentParameterDto p : agent.getParameters()) {
                     if ("boolean".equalsIgnoreCase(p.getType())) {
@@ -452,7 +478,7 @@ public class SupervisorService {
 
     private Dag planDag(UUID workspaceId, String query, List<AgentSearchMatchDto> candidates) {
         Dag dag = new Dag();
-        if ("mock-key".equalsIgnoreCase(apiKey)) {
+        if (mockMode.isLlmMocked()) {
             String[] clauses = query.split("(?i)\\b(?:then|and then|next|and finally)\\b");
             int idGen = 1;
             for (int i = 0; i < clauses.length; i++) {

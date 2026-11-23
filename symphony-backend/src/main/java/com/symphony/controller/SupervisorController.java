@@ -1,13 +1,17 @@
 package com.symphony.controller;
 
-import com.symphony.config.DatabaseInitializer;
+import com.symphony.config.SymphonyAuthentication;
 import com.symphony.dto.SupervisorResponseDto;
 import com.symphony.service.PiiFirewallService;
 import com.symphony.service.SupervisorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,48 +27,47 @@ public class SupervisorController {
     private final SupervisorService supervisorService;
     private final PiiFirewallService piiFirewall;
 
+    /**
+     * Routes a conversational query through the PII firewall and the Supervisor.
+     *
+     * <p>Identity comes exclusively from the authenticated security context. An
+     * earlier revision fell back to {@code X-Workspace-Id}, {@code X-User-Id},
+     * and {@code X-User-Role} request headers whenever that context was absent.
+     * {@code SecurityConfig} requires authentication on this path, so the branch
+     * was unreachable — but it was a complete identity-spoofing bypass sitting
+     * one configuration edit away from being live, and it contradicted
+     * {@code docs/SECURITY-AND-ACCESS.md} section 2. It has been removed rather
+     * than left to be rediscovered.
+     */
     @PostMapping("/chat")
-    public ResponseEntity<SupervisorResponseDto> chat(
-            @RequestBody Map<String, String> payload,
-            @RequestHeader(value = "X-Workspace-Id", required = false) String wsHeader,
-            @RequestHeader(value = "X-User-Id", required = false) String userHeader,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader) {
-        
+    public ResponseEntity<SupervisorResponseDto> chat(@RequestBody Map<String, String> payload) {
+
         String query = payload.get("query");
         if (query == null || query.trim().isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
 
-        UUID workspaceId = DatabaseInitializer.DEFAULT_WORKSPACE_ID;
-        UUID userId = DatabaseInitializer.DEFAULT_USER_ID;
-        String userRole = "Employee";
-
-        org.springframework.security.core.Authentication auth = 
-                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-        if (auth instanceof com.symphony.config.SymphonyAuthentication symAuth) {
-            workspaceId = symAuth.getWorkspaceId();
-            userId = symAuth.getUserId();
-            userRole = symAuth.getRole();
-        } else {
-            if (wsHeader != null && !wsHeader.trim().isEmpty()) {
-                workspaceId = UUID.fromString(wsHeader);
-            }
-            if (userHeader != null && !userHeader.trim().isEmpty()) {
-                userId = UUID.fromString(userHeader);
-            }
-            if (roleHeader != null && !roleHeader.trim().isEmpty()) {
-                userRole = roleHeader;
-            }
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (!(auth instanceof SymphonyAuthentication symAuth)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required.");
         }
 
-        // 1. Audit and Sanitize user query through PII Firewall
+        UUID workspaceId = symAuth.getWorkspaceId();
+        UUID userId = symAuth.getUserId();
+        String userRole = symAuth.getRole();
+
+        // 1. Audit and Sanitize user query through PII Firewall.
+        //    The pre-mask query is deliberately not logged: application logs are
+        //    shipped off-host, so logging it would defeat the masking for every
+        //    log-based consumer. The masked text carries the placeholders, which
+        //    is what an operator actually needs for traceability.
         PiiFirewallService.FirewallResult firewallRes = piiFirewall.sanitize(query);
-        log.info("PII Firewall result: query sanitized={} (Original: '{}', Masked: '{}')", 
-                firewallRes.isSanitized(), query, firewallRes.getMaskedText());
+        log.info("PII Firewall result: query sanitized={} (Masked: '{}')",
+                firewallRes.isSanitized(), firewallRes.getMaskedText());
 
         // 2. Dispatch the masked query to the Supervisor Routing & Execution Engine
         SupervisorResponseDto response = supervisorService.routeAndExecute(
-                workspaceId, userId, userRole, firewallRes.getMaskedText()
+                workspaceId, userId, symAuth.getRoles(), userRole, firewallRes.getMaskedText()
         );
 
         // 3. Detokenize final outputs (unmask the placeholders)

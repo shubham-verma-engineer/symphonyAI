@@ -1,0 +1,14 @@
+-- Corporate (SSO) roles are a distinct layer from the platform role in
+-- users.role_flag. See docs/SECURITY-AND-ACCESS.md section 2:
+--
+--   * users.role_flag  -> platform scope (ADMIN | CREATOR | USER): what the
+--                         user may do inside the registry and telemetry views.
+--   * corporate_roles  -> agent access scope (HR, Admin, LEGAL_COMPLIANCE...):
+--                         evaluated against agents.authorized_roles to decide
+--                         whether a payload may be routed to a given agent.
+--
+-- Before this migration there was no column for the second layer, so the roles
+-- claim in the session JWT was taken from the login request body instead. That
+-- let any caller name its own roles. Stored comma-separated to match the
+-- existing convention in agents.authorized_roles.
+ALTER TABLE users ADD COLUMN corporate_roles VARCHAR(255);

@@ -43,6 +43,9 @@ erDiagram
         varchar endpoint_url
         varchar health_check_url
         varchar status "PENDING | ACTIVE | UNHEALTHY | DEPRECATED"
+        boolean requires_rbac "Manifest security.requiresRBAC"
+        varchar authorized_roles "CSV of manifest security.authorizedRoles"
+        varchar credential_vault_uri "Vault pointer; never plaintext token"
         uuid created_by FK
         timestamp registered_at
         integer concurrency_version "Optimistic lock"
@@ -62,8 +65,9 @@ erDiagram
         uuid workspace_id FK
         uuid user_id FK
         uuid agent_id FK "Null if no agent routed"
-        varchar query_text
+        text query_text "AES-256-GCM ciphertext at rest"
         text routing_decision "routed | chained | no_match"
+        varchar department "Billing allocation bucket"
         integer execution_latency_ms
         decimal token_cost
         integer http_status_code
@@ -73,7 +77,7 @@ erDiagram
     FAILED_QUERIES {
         uuid id PK
         uuid workspace_id FK
-        varchar raw_query
+        text raw_query "AES-256-GCM ciphertext at rest"
         boolean is_clustered "Default FALSE"
         timestamp logged_at
     }
@@ -102,6 +106,16 @@ erDiagram
 ---
 
 ## 2. Relational Schema DDL Reference
+
+> The DDL below is the **consolidated current state**, i.e. `V1__init_schema.sql` with migrations `V2`–`V5` already applied. Inline comments mark which migration introduced each later column. The authoritative source is always `symphony-backend/src/main/resources/db/migration/`.
+>
+> | Migration | Change |
+> |---|---|
+> | `V1__init_schema.sql` | Base schema, pgvector/uuid-ossp extensions, HNSW and telemetry indices |
+> | `V2__add_rbac_governance.sql` | `agents.requires_rbac`, `agents.authorized_roles` |
+> | `V3__add_credential_vault_uri.sql` | `agents.credential_vault_uri` |
+> | `V4__increase_query_text_columns_length.sql` | `telemetry_logs.query_text` and `failed_queries.raw_query` widened `VARCHAR(500)` → `TEXT` to fit base64 AES-GCM ciphertext |
+> | `V5__add_department_to_telemetry.sql` | `telemetry_logs.department` |
 
 ```sql
 -- Extensions
@@ -146,6 +160,9 @@ CREATE TABLE agents (
     endpoint_url VARCHAR(255) NOT NULL,
     health_check_url VARCHAR(255),
     status VARCHAR(20) DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'ACTIVE', 'UNHEALTHY', 'DEPRECATED')),
+    requires_rbac BOOLEAN DEFAULT FALSE,            -- added in V2
+    authorized_roles VARCHAR(255),                  -- added in V2; comma-separated role names
+    credential_vault_uri VARCHAR(255),              -- added in V3; vault pointer, never a plaintext token
     created_by UUID REFERENCES users(id) ON DELETE SET NULL,
     registered_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     concurrency_version INTEGER DEFAULT 0 NOT NULL,
@@ -169,11 +186,12 @@ CREATE TABLE telemetry_logs (
     workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     agent_id UUID REFERENCES agents(id) ON DELETE SET NULL,
-    query_text VARCHAR(500) NOT NULL,
+    query_text TEXT NOT NULL,                       -- widened from VARCHAR(500) in V4; holds base64 AES-256-GCM ciphertext
     routing_decision VARCHAR(20) NOT NULL CHECK (routing_decision IN ('routed', 'chained', 'no_match')),
     execution_latency_ms INTEGER,
     token_cost DECIMAL(10, 6) DEFAULT 0.000000,
     http_status_code INTEGER,
+    department VARCHAR(50),                         -- added in V5; department billing allocation bucket
     executed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -181,7 +199,7 @@ CREATE TABLE telemetry_logs (
 CREATE TABLE failed_queries (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-    raw_query VARCHAR(500) NOT NULL,
+    raw_query TEXT NOT NULL,                        -- widened from VARCHAR(500) in V4; holds base64 AES-256-GCM ciphertext
     is_clustered BOOLEAN DEFAULT FALSE,
     logged_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

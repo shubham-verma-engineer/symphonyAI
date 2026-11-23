@@ -1,0 +1,50 @@
+# Test configuration. Replaces the main application.yml entirely on the test
+# classpath, so it must carry everything the context needs.
+#
+# Mock mode is on: the suite runs offline, with seeded embeddings and bypassed
+# outbound agent calls, and the development accounts are seeded so that
+# authentication tests have credentials to verify against.
+server:
+  port: 0
+
+spring:
+  application:
+    name: symphony-backend-test
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/symphony}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+openai:
+  # Never sent anywhere: mock mode is on, so symphony.mock.llm follows it and
+  # every LLM call uses the local stand-ins.
+  api-key: test-placeholder-not-used
+  embedding-model: text-embedding-3-small
+
+symphony:
+  mock:
+    enabled: true
+  dev:
+    seed-password: test-seed-password
+  jwt:
+    expiration-ms: 86400000
+  vault:
+    # The suite runs against the in-memory vault. SecretsVaultContractTest
+    # builds a Vault-backed instance itself and skips when none is reachable.
+    provider: local
+    encryption-key: test-only-local-vault-encryption-key
